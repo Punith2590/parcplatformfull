@@ -31,18 +31,15 @@ export const DataProvider = ({ children }) => {
       if (!user) {
         setUsers([]); setMaterials([]); setSchedules([]); setColleges([]); setApplications([]); fetchedRef.current = false; setIsLoading(false); return;
       }
-      // React 18 StrictMode runs effects twice (mount->unmount->mount). First run sets loading true and its cleanup marks cancelled.
-      // Second run sees fetchedRef=true (from first run) and would previously exit without clearing loading. Fix below:
       if (fetchedRef.current) {
         if (isLoading) {
           console.log('[DataContext] StrictMode duplicate effect: clearing stale loading state');
           setIsLoading(false);
         }
-        return; // Data already fetched (or in progress previously) – skip.
+        return; 
       }
-  setIsLoading(true);
+      setIsLoading(true);
       console.log('[DataContext] setIsLoading(true)');
-      // Safety timeout: ensure we never stay stuck beyond 8s
       if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current);
       safetyTimerRef.current = setTimeout(() => {
         if (isLoading) {
@@ -52,10 +49,10 @@ export const DataProvider = ({ children }) => {
           fetchedRef.current = false;
         }
       }, 8000);
-  try {
-  console.log('[DataContext] Fetching initial data for role', user.role);
+      try {
+        console.log('[DataContext] Fetching initial data for role', user.role);
         const authHdr = apiClient.defaults?.headers?.common?.['Authorization'];
-  console.log('[DataContext] Authorization header before batch:', authHdr || '(none)');
+        console.log('[DataContext] Authorization header before batch:', authHdr || '(none)');
 
         const endpoints = [
           { key: 'users', url: '/users/' },
@@ -71,12 +68,12 @@ export const DataProvider = ({ children }) => {
         ]);
 
         const start = performance.now();
-  const results = await Promise.allSettled(endpoints.map(ep => {
+        const results = await Promise.allSettled(endpoints.map(ep => {
           console.log('[DataContext] GET', ep.url);
           return withTimeout(apiClient.get(ep.url), 10000, ep.key);
         }));
         const elapsed = (performance.now() - start).toFixed(0);
-  console.log('[DataContext] Fetch batch settled in', elapsed,'ms');
+        console.log('[DataContext] Fetch batch settled in', elapsed,'ms');
         if (cancelled) return;
 
         let had401 = false;
@@ -99,13 +96,13 @@ export const DataProvider = ({ children }) => {
         });
         if (had401) {
           setError('Session expired. Refreshing token...');
-          fetchedRef.current = false; // allow retry after refresh
+          fetchedRef.current = false;
         } else if (results.every(r => r.status === 'rejected')) {
           setError('All data requests failed.');
           fetchedRef.current = false;
         } else {
           setError(null);
-          fetchedRef.current = true; // mark successful fetch completion
+          fetchedRef.current = true;
         }
       } catch (error) {
         const status = error?.response?.status;
@@ -118,30 +115,57 @@ export const DataProvider = ({ children }) => {
           console.error('[DataContext] Failed fetching data:', { status, detail, error });
           setError('Failed loading data.');
         }
-  } finally { if (!cancelled) { setIsLoading(false); console.log('[DataContext] setIsLoading(false)'); if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current); } }
+      } finally { if (!cancelled) { setIsLoading(false); console.log('[DataContext] setIsLoading(false)'); if (safetyTimerRef.current) clearTimeout(safetyTimerRef.current); } }
     };
     fetchAllData();
     return () => { cancelled = true; };
   }, [user]);
 
-  // Listen for token refresh events to retry fetch if previously failed
   useEffect(() => {
     const handler = () => {
       if (user) {
         if (import.meta.env.DEV) console.debug('[DataContext] authTokensUpdated event -> allowing refetch');
         fetchedRef.current = false;
-        // trigger effect re-run by setting a dummy state toggle OR directly calling fetch (simpler: use a microtask)
         Promise.resolve().then(() => {
-          // Manually invoke logic by temporarily toggling user reference through a noop set
-          // (Alternative: extract fetch function and call here)
-          // We'll just reset fetchedRef and rely on next render cycle; if none, force one.
-          setIsLoading(l => l); // no-op to ensure React notices something
+          setIsLoading(l => l); 
         });
       }
     };
     window.addEventListener('authTokensUpdated', handler);
     return () => window.removeEventListener('authTokensUpdated', handler);
   }, [user]);
+
+  const addMaterial = async (materialData) => {
+    try {
+      const response = await apiClient.post('/materials/', materialData);
+      setMaterials(prev => [response.data, ...prev]);
+    } catch (error) {
+      console.error("Failed to add material:", error);
+      setError("Could not add the material. Please try again.");
+    }
+  };
+
+  const updateMaterial = async (materialId, updatedData) => {
+    try {
+      const response = await apiClient.patch(`/materials/${materialId}/`, updatedData);
+      setMaterials(prev => 
+        prev.map(m => (m.id === materialId ? response.data : m))
+      );
+    } catch (error) {
+      console.error("Failed to update material:", error);
+      setError("Could not update the material. Please try again.");
+    }
+  };
+
+  const deleteMaterial = async (materialId) => {
+    try {
+      await apiClient.delete(`/materials/${materialId}/`);
+      setMaterials(prev => prev.filter(m => m.id !== materialId));
+    } catch (error) {
+      console.error("Failed to delete material:", error);
+      setError("Could not delete the material. Please try again.");
+    }
+  };
 
   const removeApplication = (applicationId) => {
     setApplications(prev => prev.filter(app => app.id !== applicationId));
@@ -153,6 +177,9 @@ export const DataProvider = ({ children }) => {
   const value = {
     users, trainers, students, materials, schedules, colleges, applications,
     removeApplication,
+    addMaterial,
+    updateMaterial,
+    deleteMaterial,
   };
 
   return (

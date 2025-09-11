@@ -31,7 +31,7 @@ class Material(models.Model):
     title = models.CharField(max_length=100)
     course = models.CharField(max_length=100)
     type = models.CharField(max_length=10, choices=MATERIAL_TYPE_CHOICES)
-    content = models.TextField()
+    content = models.FileField(upload_to='materials/')
     def __str__(self):
         return self.title
 

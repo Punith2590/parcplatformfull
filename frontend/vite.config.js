@@ -1,10 +1,11 @@
-import path from 'path';
+// frontend/vite.config.js
+
 import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, '.'),
-    }
-  }
+  plugins: [react()],
+  optimizeDeps: {
+    exclude: ['fsevents'],
+  },
 });

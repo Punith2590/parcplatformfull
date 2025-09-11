@@ -1,6 +1,7 @@
 # backend/core/views.py
 
 from rest_framework import viewsets, status
+from rest_framework.parsers import MultiPartParser, FormParser 
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
@@ -67,6 +68,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Material.objects.all()
     serializer_class = MaterialSerializer
+    parser_classes = (MultiPartParser, FormParser)
 
 class ScheduleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
