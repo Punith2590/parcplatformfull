@@ -1,0 +1,62 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Node / Frontend
+node_modules/
+dist/
+build/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+npm-debug.log*
+yarn-*.log
+pnpm-debug.log*
+
+# React
+*.map
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.so
+.Python
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+htmlcov/
+.coverage*
+.pytest_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+ENV/
+
+# Django
+db.sqlite3
+media/
+staticfiles/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.code-workspace
+
+# Env / Secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+.env.production
+
+# Logs / Temp
+logs/
+*.log
+tmp/
+temp/
+.sass-cache/
