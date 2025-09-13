@@ -22,13 +22,14 @@ const StudentManager = () => {
   };
 
   const handleSubmit = (e) => {
-      e.preventDefault();
-      addUser({
-          ...newStudent,
-          role: Role.STUDENT,
-      });
-      setIsModalOpen(false);
-      setNewStudent({ name: '', email: '', course: '', college: '' });
+    e.preventDefault();
+    console.log('[StudentManager] Submitting new student', newStudent);
+    addUser({
+      ...newStudent,
+      role: Role.STUDENT,
+    });
+    setIsModalOpen(false);
+    setNewStudent({ name: '', email: '', course: '', college: '' });
   };
 
   const handleOpenAssignModal = (student) => {
@@ -123,22 +124,22 @@ const StudentManager = () => {
           <div className="space-y-4">
             <div>
               <label htmlFor="name" className={formLabelClasses}>Full Name</label>
-              <input type="text" name="name" id="name" value={newStudent.name} onChange={handleInputChange} required className={formInputClasses} />
+              <input type="text" name="name" id="name" autoComplete="name" value={newStudent.name} onChange={handleInputChange} required className={formInputClasses} />
             </div>
              <div>
               <label htmlFor="email" className={formLabelClasses}>Email Address</label>
-              <input type="email" name="email" id="email" value={newStudent.email} onChange={handleInputChange} required className={formInputClasses} />
+              <input type="email" name="email" id="email" autoComplete="email" value={newStudent.email} onChange={handleInputChange} required className={formInputClasses} />
             </div>
             <div>
               <label htmlFor="college" className={formLabelClasses}>College</label>
-              <select name="college" id="college" value={newStudent.college} onChange={handleInputChange} required className={formInputClasses}>
+              <select name="college" id="college" autoComplete="organization" value={newStudent.college} onChange={handleInputChange} required className={formInputClasses}>
                 <option value="" disabled>Select a college</option>
                 {colleges.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
              <div>
               <label htmlFor="course" className={formLabelClasses}>Course</label>
-              <input type="text" name="course" id="course" value={newStudent.course} onChange={handleInputChange} required className={formInputClasses} />
+              <input type="text" name="course" id="course" autoComplete="organization-title" value={newStudent.course} onChange={handleInputChange} required className={formInputClasses} />
             </div>
           </div>
           <div className="mt-6 flex justify-end gap-4">

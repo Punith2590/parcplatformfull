@@ -1,17 +1,21 @@
+// frontend/components/admin/CollegeManager.jsx
+
 import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
-import { AcademicCapIcon } from '../icons/Icons';
+import { AcademicCapIcon, PencilIcon, XIcon } from '../icons/Icons';
 import Modal from '../shared/Modal';
 
 const CollegeManager = ({ onCollegeSelect }) => {
-  const { colleges, addCollege } = useData();
+  const { colleges, addCollege, updateCollege, deleteCollege } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCollege, setEditingCollege] = useState(null);
+
   const getInitialCollegeState = () => ({
     name: '',
     address: '',
-    contactPerson: '',
-    contactEmail: '',
-    contactPhone: '',
+    contact_person: '',
+    contact_email: '',
+    contact_phone: '',
   });
   const [newCollege, setNewCollege] = useState(getInitialCollegeState());
 
@@ -23,12 +27,37 @@ const CollegeManager = ({ onCollegeSelect }) => {
       setNewCollege(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleOpenModal = (college = null) => {
+    if (college) {
+      setEditingCollege(college);
+      setNewCollege(college);
+    } else {
+      setEditingCollege(null);
+      setNewCollege(getInitialCollegeState());
+    }
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setEditingCollege(null);
+    setNewCollege(getInitialCollegeState());
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (newCollege.name.trim()) {
-        addCollege(newCollege);
-        setNewCollege(getInitialCollegeState());
-        setIsModalOpen(false);
+    if (editingCollege) {
+      updateCollege(editingCollege.id, newCollege);
+    } else {
+      addCollege(newCollege);
+    }
+    handleCloseModal();
+  };
+
+  const handleDelete = (e, collegeId) => {
+    e.stopPropagation(); // Prevents the onCollegeSelect from firing
+    if (window.confirm('Are you sure you want to delete this college?')) {
+      deleteCollege(collegeId);
     }
   };
 
@@ -39,7 +68,7 @@ const CollegeManager = ({ onCollegeSelect }) => {
                 <h1 className="text-3xl font-bold text-pygenic-blue">Partner Colleges</h1>
                 <p className="mt-2 text-slate-600 dark:text-slate-400">Select a college to view its detailed training dashboard.</p>
             </div>
-            <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm whitespace-nowrap">
+            <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm whitespace-nowrap">
                 Onboard College
             </button>
       </div>
@@ -48,10 +77,10 @@ const CollegeManager = ({ onCollegeSelect }) => {
         {colleges.length > 0 ? (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {colleges.map((college) => (
-              <button
+              <div
                 key={college.id}
                 onClick={() => onCollegeSelect(college)}
-                className="p-5 bg-white dark:bg-slate-800/50 rounded-xl shadow-sm border dark:border-slate-700 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:shadow-md hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 dark:focus:ring-offset-slate-900"
+                className="relative group p-5 bg-white dark:bg-slate-800/50 rounded-xl shadow-sm border dark:border-slate-700 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-all hover:shadow-md hover:-translate-y-1 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-violet-500 dark:focus:ring-offset-slate-900 cursor-pointer"
               >
                 <div className="flex items-start gap-4">
                     <div className="p-3 bg-violet-100 dark:bg-violet-500/10 rounded-full">
@@ -62,7 +91,16 @@ const CollegeManager = ({ onCollegeSelect }) => {
                         <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-1">{college.address || 'No address'}</p>
                     </div>
                 </div>
-              </button>
+                {/* --- ACTION BUTTONS --- */}
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); handleOpenModal(college); }} className="p-1.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200">
+                        <PencilIcon className="w-4 h-4" />
+                    </button>
+                    <button onClick={(e) => handleDelete(e, college.id)} className="p-1.5 bg-red-100 text-red-600 rounded-full hover:bg-red-200">
+                        <XIcon className="w-4 h-4" />
+                    </button>
+                </div>
+              </div>
             ))}
           </div>
         ) : (
@@ -73,7 +111,7 @@ const CollegeManager = ({ onCollegeSelect }) => {
         )}
       </div>
       
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Onboard New College">
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCollege ? "Edit College" : "Onboard New College"}>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
@@ -86,22 +124,24 @@ const CollegeManager = ({ onCollegeSelect }) => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label htmlFor="contactPerson" className={formLabelClasses}>Contact Person</label>
-                    <input type="text" name="contactPerson" id="contactPerson" value={newCollege.contactPerson} onChange={handleInputChange} required className={formInputClasses} placeholder="Dr. Eleanor Vance" />
+                    <label htmlFor="contact_person" className={formLabelClasses}>Contact Person</label>
+                    <input type="text" name="contact_person" id="contact_person" value={newCollege.contact_person} onChange={handleInputChange} required className={formInputClasses} placeholder="Dr. Eleanor Vance" />
                 </div>
                 <div>
-                    <label htmlFor="contactEmail" className={formLabelClasses}>Contact Email</label>
-                    <input type="email" name="contactEmail" id="contactEmail" value={newCollege.contactEmail} onChange={handleInputChange} required className={formInputClasses} placeholder="evance@stateu.edu" />
+                    <label htmlFor="contact_email" className={formLabelClasses}>Contact Email</label>
+                    <input type="email" name="contact_email" id="contact_email" value={newCollege.contact_email} onChange={handleInputChange} required className={formInputClasses} placeholder="evance@stateu.edu" />
                 </div>
             </div>
              <div>
-                <label htmlFor="contactPhone" className={formLabelClasses}>Contact Phone</label>
-                <input type="tel" name="contactPhone" id="contactPhone" value={newCollege.contactPhone} onChange={handleInputChange} className={formInputClasses} placeholder="555-0102" />
+                <label htmlFor="contact_phone" className={formLabelClasses}>Contact Phone</label>
+                <input type="tel" name="contact_phone" id="contact_phone" value={newCollege.contact_phone} onChange={handleInputChange} className={formInputClasses} placeholder="555-0102" />
             </div>
           </div>
           <div className="mt-6 flex justify-end gap-4">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md shadow-sm hover:bg-violet-700">Onboard College</button>
+            <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600">Cancel</button>
+            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md shadow-sm hover:bg-violet-700">
+              {editingCollege ? "Save Changes" : "Onboard College"}
+            </button>
           </div>
         </form>
       </Modal>

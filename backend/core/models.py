@@ -16,6 +16,15 @@ class User(AbstractUser):
     course = models.CharField(max_length=100, blank=True, null=True)
     college = models.CharField(max_length=100, blank=True, null=True)
     access_expiry_date = models.DateTimeField(null=True, blank=True)
+    assigned_materials = models.ManyToManyField('Material', blank=True, related_name='assigned_users')
+
+    @property
+    def get_full_name(self):
+        """
+        Returns the first_name plus the last_name, with a space in between.
+        """
+        full_name = '%s %s' % (self.first_name, self.last_name)
+        return full_name.strip()
 
 class College(models.Model):
     name = models.CharField(max_length=100, unique=True)

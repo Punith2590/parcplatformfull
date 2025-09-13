@@ -1,3 +1,5 @@
+// frontend/context/DataContext.jsx
+
 import React, { createContext, useState, useContext, useEffect, useMemo, useRef } from 'react';
 import { Role } from '../types';
 import apiClient from '../api';
@@ -18,7 +20,6 @@ export const DataProvider = ({ children }) => {
   const fetchedRef = useRef(false);
   const safetyTimerRef = useRef(null);
 
-  // Expose simple debug object for manual inspection
   if (typeof window !== 'undefined') {
     window.__dataDebug = {
       get state() { return { isLoading, users: users.length, materials: materials.length, schedules: schedules.length, colleges: colleges.length, applications: applications.length, fetchedRef: fetchedRef.current }; },
@@ -167,6 +168,71 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const addCollege = async (collegeData) => {
+    try {
+      const response = await apiClient.post('/colleges/', collegeData);
+      setColleges(prev => [response.data, ...prev]);
+    } catch (error) {
+      console.error("Failed to add college:", error);
+      setError("Could not add college. Please try again.");
+    }
+  };
+
+  const updateCollege = async (collegeId, updatedData) => {
+    try {
+      const response = await apiClient.patch(`/colleges/${collegeId}/`, updatedData);
+      setColleges(prev => 
+        prev.map(c => (c.id === collegeId ? response.data : c))
+      );
+    } catch (error) {
+      console.error("Failed to update college:", error);
+      setError("Could not update college. Please try again.");
+    }
+  };
+
+  const deleteCollege = async (collegeId) => {
+    try {
+      await apiClient.delete(`/colleges/${collegeId}/`);
+      setColleges(prev => prev.filter(c => c.id !== collegeId));
+    } catch (error) {
+      console.error("Failed to delete college:", error);
+      setError("Could not delete college. Please try again.");
+    }
+  };
+
+  const addUser = async (userData) => {
+    try {
+      const name = userData.name?.trim();
+      const email = userData.email?.trim();
+      if (!name || !email) throw new Error('Name and Email are required');
+      const postData = { ...userData, name, email };
+      console.log('[DataContext.addUser] POST /users/ payload:', postData);
+      const response = await apiClient.post('/users/', postData);
+      setUsers(prev => [response.data, ...prev]);
+    } catch (error) {
+      const resp = error?.response;
+      console.error('Failed to add user:', { status: resp?.status, data: resp?.data, message: error.message });
+      if (resp?.data) {
+        const fieldErrors = Object.entries(resp.data).map(([k,v]) => `${k}: ${Array.isArray(v)?v.join(','):v}`).join(' | ');
+        setError(`Add user failed (${resp.status}) - ${fieldErrors}`);
+      } else {
+        setError('Could not add user. The email may already exist.');
+      }
+    }
+  };
+
+  const assignMaterialsToStudent = async (studentId, materialIds) => {
+    try {
+      const response = await apiClient.post(`/users/${studentId}/assign_materials/`, { material_ids: materialIds });
+      setUsers(prev =>
+        prev.map(u => (u.id === studentId ? response.data : u))
+      );
+    } catch (error) {
+      console.error("Failed to assign materials:", error);
+      setError("Could not assign materials. Please try again.");
+    }
+  };
+
   const removeApplication = (applicationId) => {
     setApplications(prev => prev.filter(app => app.id !== applicationId));
   };
@@ -180,6 +246,11 @@ export const DataProvider = ({ children }) => {
     addMaterial,
     updateMaterial,
     deleteMaterial,
+    addCollege,
+    updateCollege,
+    deleteCollege,
+    addUser,
+    assignMaterialsToStudent,
   };
 
   return (

@@ -55,6 +55,7 @@ const CollegeInformationDashboard = ({ college, onBack }) => {
 
     const handleStudentSubmit = (e) => {
         e.preventDefault();
+        console.log('[CollegeInfo] Submitting new student', newStudent, 'college:', college.name);
         addUser({
             ...newStudent,
             college: college.name,
@@ -178,15 +179,15 @@ const CollegeInformationDashboard = ({ college, onBack }) => {
                     <div className="space-y-4">
                         <div>
                             <label htmlFor="name" className={formLabelClasses}>Full Name</label>
-                            <input type="text" name="name" id="name" value={newStudent.name} onChange={handleStudentInputChange} required className={formInputClasses} />
+                            <input type="text" name="name" id="name" autoComplete="name" value={newStudent.name} onChange={handleStudentInputChange} required className={formInputClasses} />
                         </div>
                         <div>
                             <label htmlFor="email" className={formLabelClasses}>Email Address</label>
-                            <input type="email" name="email" id="email" value={newStudent.email} onChange={handleStudentInputChange} required className={formInputClasses} />
+                            <input type="email" name="email" id="email" autoComplete="email" value={newStudent.email} onChange={handleStudentInputChange} required className={formInputClasses} />
                         </div>
                         <div>
                             <label htmlFor="course" className={formLabelClasses}>Course</label>
-                            <input type="text" name="course" id="course" value={newStudent.course} onChange={handleStudentInputChange} required className={formInputClasses} />
+                            <input type="text" name="course" id="course" autoComplete="organization-title" value={newStudent.course} onChange={handleStudentInputChange} required className={formInputClasses} />
                         </div>
                     </div>
                     <div className="mt-6 flex justify-end gap-4">

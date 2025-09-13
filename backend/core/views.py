@@ -13,24 +13,17 @@ from .serializers import (
 import secrets
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-# This view is for logging in and is public by default.
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
-# This ViewSet is for the public trainer onboarding form.
 class TrainerApplicationViewSet(viewsets.ModelViewSet):
     queryset = TrainerApplication.objects.filter(status='PENDING')
     serializer_class = TrainerApplicationSerializer
-    # --- FIX: Explicitly allow anyone to submit an application ---
     permission_classes = [AllowAny] 
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def approve(self, request, pk=None):
-        """
-        Approves an application. Only authenticated users (admins) can access this.
-        """
         application = self.get_object()
-        
         user, created = User.objects.get_or_create(
             username=application.email,
             defaults={
@@ -44,20 +37,47 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
                 'is_active': False
             }
         )
-
         if not created:
             return Response({'error': 'A user with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-
         application.status = 'APPROVED'
         application.save()
-
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
-# --- FIX: Add permissions to all ViewSets that require a user to be logged in ---
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = User.objects.all()
     serializer_class = UserSerializer
+
+    def create(self, request, *args, **kwargs):
+        print('[UserViewSet.create] incoming data:', request.data)
+        serializer = self.get_serializer(data=request.data)
+        if not serializer.is_valid():
+            errors = serializer.errors
+            if 'username' in errors and 'email' not in errors:
+                errors = { **errors, 'email': errors.pop('username') }
+            print('[UserViewSet.create] validation errors (normalized):', errors)
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        print('[UserViewSet.create] created user id:', serializer.instance.id)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+    @action(detail=True, methods=['post'])
+    def assign_materials(self, request, pk=None):
+        user = self.get_object()
+        if user.role != 'STUDENT':
+            return Response({'error': 'Can only assign materials to students.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        material_ids = request.data.get('material_ids', [])
+        
+        materials = Material.objects.filter(id__in=material_ids)
+        if len(materials) != len(material_ids):
+            return Response({'error': 'One or more material IDs are invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.assigned_materials.set(materials)
+        user.save()
+        
+        return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
 
 class CollegeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]

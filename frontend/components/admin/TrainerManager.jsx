@@ -1,5 +1,3 @@
-// frontend/components/admin/TrainerManager.jsx
-
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { Role } from '../../types';
@@ -30,14 +28,14 @@ const TrainerManager = () => {
   };
 
   const handleSubmit = (e) => {
-      e.preventDefault();
-      addUser({
-          ...newTrainer,
-          role: Role.TRAINER,
-          password: 'password' // Default password
-      });
-      setIsModalOpen(false);
-      setNewTrainer({ name: '', email: '', phone: '', expertise: '', experience: 0 });
+    e.preventDefault();
+    console.log('[TrainerManager] Submitting new trainer', newTrainer);
+    addUser({
+      ...newTrainer,
+      role: Role.TRAINER,
+    });
+    setIsModalOpen(false);
+    setNewTrainer({ name: '', email: '', phone: '', expertise: '', experience: 0 });
   };
   
   const filteredTrainers = useMemo(() => {
@@ -50,30 +48,17 @@ const TrainerManager = () => {
     );
   }, [trainers, searchTerm]);
 
-  // --- NEW FUNCTION ---
-  // Copies the onboarding link to the admin's clipboard
-  const handleCopyLink = () => {
-    const onboardingUrl = `${window.location.origin}/onboarding`;
-    navigator.clipboard.writeText(onboardingUrl);
-    alert('Onboarding link copied to clipboard!');
-  };
-
 
   return (
     <div>
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-pygenic-blue">Trainer Management</h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">View and manage all active trainers in the platform.</p>
         </div>
-        <div className="flex-shrink-0 flex gap-2">
-            <button onClick={handleCopyLink} className="px-4 py-2 bg-emerald-600 text-white font-semibold rounded-lg hover:bg-emerald-700 transition-colors shadow-sm whitespace-nowrap">
-                Copy Onboarding Link
-            </button>
-            <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">
-                Create Trainer
-            </button>
-        </div>
+        <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">
+            Create Trainer
+        </button>
       </div>
       
        <div className="mt-6">
