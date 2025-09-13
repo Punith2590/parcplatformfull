@@ -1,9 +1,9 @@
 # backend/core/serializers.py
 
 from rest_framework import serializers
-from .models import User, College, Material, Schedule, TrainerApplication
+from .models import StudentAttempt, User, College, Material, Schedule, TrainerApplication, Expense, Bill, Assessment
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -24,7 +24,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'email', 'role', 'expertise', 'experience',
             'phone', 'course', 'college', 'access_expiry_date',
-            'assigned_materials', 'name', 'full_name'
+            'assigned_materials', 'name', 'full_name', 'resume', 'assigned_assessments'
         )
         extra_kwargs = {
             'email': {'required': True},
@@ -70,3 +70,38 @@ class TrainerApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = TrainerApplication
         fields = '__all__'
+
+class ExpenseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Expense
+        fields = ['id', 'type', 'description', 'amount']
+
+class BillSerializer(serializers.ModelSerializer):
+    expenses = ExpenseSerializer(many=True)
+    trainer_name = serializers.CharField(source='trainer.get_full_name', read_only=True)
+
+    class Meta:
+        model = Bill
+        fields = ['id', 'trainer', 'trainer_name', 'date', 'status', 'invoice_number', 'expenses']
+    
+    def create(self, validated_data):
+        expenses_data = validated_data.pop('expenses')
+        with transaction.atomic():
+            bill = Bill.objects.create(**validated_data)
+            for expense_data in expenses_data:
+                Expense.objects.create(bill=bill, **expense_data)
+        return bill
+    
+class AssessmentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Assessment
+        fields = '__all__'
+
+class StudentAttemptSerializer(serializers.ModelSerializer):
+    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
+    assessment_title = serializers.CharField(source='assessment.title', read_only=True)
+    course = serializers.CharField(source='assessment.course', read_only=True)
+
+    class Meta:
+        model = StudentAttempt
+        fields = ['id', 'student', 'student_name', 'assessment', 'assessment_title', 'course', 'score', 'timestamp']

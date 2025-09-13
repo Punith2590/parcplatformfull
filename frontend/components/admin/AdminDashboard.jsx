@@ -16,6 +16,9 @@ import BillingManager from './BillingManager';
 const AdminDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedCollege, setSelectedCollege] = useState(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const navigateToCollege = (college) => {
     setSelectedCollege(college);
@@ -57,9 +60,9 @@ const AdminDashboard = () => {
 
   return (
     <div className="flex h-screen text-slate-800">
-      <Sidebar currentView={currentView} setView={handleSetView} userRole={Role.ADMIN} />
+      <Sidebar currentView={currentView} setView={handleSetView} userRole={Role.ADMIN} isSidebarOpen={isSidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        <Header onMenuClick={toggleSidebar} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-6">
             {renderView()}
         </main>

@@ -10,6 +10,9 @@ import MyAssessments from './MyAssessments';
 
 export const StudentDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const renderView = () => {
     switch (currentView) {
@@ -27,9 +30,9 @@ export const StudentDashboard = () => {
 
   return (
     <div className="flex h-screen text-slate-800">
-      <Sidebar currentView={currentView} setView={setCurrentView} userRole={Role.STUDENT} />
+      <Sidebar currentView={currentView} setView={setCurrentView} userRole={Role.STUDENT} isSidebarOpen={isSidebarOpen} />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
+        <Header onMenuClick={toggleSidebar} />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-50 p-6">
             {renderView()}
         </main>

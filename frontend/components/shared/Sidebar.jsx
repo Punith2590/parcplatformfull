@@ -35,11 +35,11 @@ const navItemsMap = {
 };
 
 
-const Sidebar = ({ currentView, setView, userRole }) => {
+const Sidebar = ({ currentView, setView, userRole, isSidebarOpen }) => {
   const navItems = navItemsMap[userRole];
 
   return (
-    <aside className="w-64 flex-shrink-0 bg-parc-blue-dark text-slate-300 flex flex-col">
+    <aside className={`w-64 flex-shrink-0 bg-parc-blue-dark text-slate-300 flex flex-col ${isSidebarOpen ? 'block' : 'hidden'}`}>
       <div className="h-20 flex items-center px-4 border-b border-slate-500/30">
         <div className="flex items-center gap-2">
             <PygenicArcLogo className="h-12 w-12" />

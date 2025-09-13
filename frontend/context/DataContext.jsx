@@ -14,6 +14,10 @@ export const DataProvider = ({ children }) => {
   const [schedules, setSchedules] = useState([]);
   const [colleges, setColleges] = useState([]);
   const [applications, setApplications] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [studentAttempts, setStudentAttempts] = useState([]);
+  const [assessments, setAssessments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -30,7 +34,7 @@ export const DataProvider = ({ children }) => {
     let cancelled = false;
     const fetchAllData = async () => {
       if (!user) {
-        setUsers([]); setMaterials([]); setSchedules([]); setColleges([]); setApplications([]); fetchedRef.current = false; setIsLoading(false); return;
+        setUsers([]); setMaterials([]); setSchedules([]); setColleges([]); setApplications([]); setBills([]); setLeaderboard([]); setStudentAttempts([]); setAssessments([]); fetchedRef.current = false; setIsLoading(false); return;
       }
       if (fetchedRef.current) {
         if (isLoading) {
@@ -61,6 +65,9 @@ export const DataProvider = ({ children }) => {
           { key: 'schedules', url: '/schedules/' },
           { key: 'colleges', url: '/colleges/' },
           { key: 'applications', url: '/applications/' },
+          { key: 'bills', url: '/bills/' },
+          { key: 'reporting', url: '/reporting/' },
+          { key: 'assessments', url: '/assessments/' },
         ];
 
         const withTimeout = (p, ms, key) => Promise.race([
@@ -88,6 +95,14 @@ export const DataProvider = ({ children }) => {
                 case 'schedules': setSchedules(data.map(s => ({ ...s, startDate: new Date(s.start_date), endDate: new Date(s.end_date) }))); break;
                 case 'colleges': setColleges(data); break;
                 case 'applications': setApplications(data); break;
+                case 'bills':
+                  setBills(data.map(b => ({ ...b, date: new Date(b.date) })));
+                  break;
+                case 'assessments': setAssessments(data); break;
+                case 'reporting':
+                  setLeaderboard(data.leaderboard || []);
+                  setStudentAttempts(data.student_attempts.map(a => ({ ...a, timestamp: new Date(a.timestamp) })) || []);
+                  break;
               }
             } else {
               const respStatus = res.reason?.response?.status;
@@ -135,6 +150,64 @@ export const DataProvider = ({ children }) => {
     window.addEventListener('authTokensUpdated', handler);
     return () => window.removeEventListener('authTokensUpdated', handler);
   }, [user]);
+
+  const addSchedule = async (scheduleData) => {
+    try {
+      // The backend expects trainer, college, and materials as IDs
+      const payload = {
+        trainer: scheduleData.trainerId,
+        college: scheduleData.college, // Assuming this is the college ID or name based on your model
+        course: scheduleData.course,
+        start_date: scheduleData.startDate.toISOString(),
+        end_date: scheduleData.endDate.toISOString(),
+        materials: scheduleData.materialIds,
+      };
+      const response = await apiClient.post('/schedules/', payload);
+      // Convert dates back to Date objects for the frontend state
+      const newSchedule = {
+        ...response.data,
+        startDate: new Date(response.data.start_date),
+        endDate: new Date(response.data.end_date),
+      };
+      setSchedules(prev => [newSchedule, ...prev]);
+    } catch (error) {
+      console.error("Failed to add schedule:", error.response?.data || error.message);
+      setError("Could not add schedule. Please check the details and try again.");
+    }
+  };
+
+  const updateSchedule = async (scheduleId, scheduleData) => {
+    try {
+      const payload = {
+        trainer: scheduleData.trainerId,
+        college: scheduleData.college,
+        course: scheduleData.course,
+        start_date: scheduleData.startDate.toISOString(),
+        end_date: scheduleData.endDate.toISOString(),
+        materials: scheduleData.materialIds,
+      };
+      const response = await apiClient.patch(`/schedules/${scheduleId}/`, payload);
+      const updatedSchedule = {
+        ...response.data,
+        startDate: new Date(response.data.start_date),
+        endDate: new Date(response.data.end_date),
+      };
+      setSchedules(prev => prev.map(s => (s.id === scheduleId ? updatedSchedule : s)));
+    } catch (error) {
+      console.error("Failed to update schedule:", error.response?.data || error.message);
+      setError("Could not update schedule. Please try again.");
+    }
+  };
+
+  const deleteSchedule = async (scheduleId) => {
+    try {
+      await apiClient.delete(`/schedules/${scheduleId}/`);
+      setSchedules(prev => prev.filter(s => s.id !== scheduleId));
+    } catch (error) {
+      console.error("Failed to delete schedule:", error);
+      setError("Could not delete schedule. Please try again.");
+    }
+  };
 
   const addMaterial = async (materialData) => {
     try {
@@ -221,6 +294,26 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const updateUser = async (userId, userData) => {
+    try {
+      const response = await apiClient.patch(`/users/${userId}/`, userData);
+      setUsers(prev => prev.map(u => (u.id === userId ? response.data : u)));
+    } catch (error) {
+      console.error("Failed to update user:", error.response?.data || error.message);
+      setError("Could not update user.");
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      await apiClient.delete(`/users/${userId}/`);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (error) {
+      console.error("Failed to delete user:", error);
+      setError("Could not delete user.");
+    }
+  };
+
   const assignMaterialsToStudent = async (studentId, materialIds) => {
     try {
       const response = await apiClient.post(`/users/${studentId}/assign_materials/`, { material_ids: materialIds });
@@ -236,12 +329,40 @@ export const DataProvider = ({ children }) => {
   const removeApplication = (applicationId) => {
     setApplications(prev => prev.filter(app => app.id !== applicationId));
   };
-  
+
+  const addBill = async (billData) => {
+    try {
+      const payload = {
+        trainer: billData.trainerId,
+        date: billData.date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+        expenses: billData.expenses,
+      };
+      const response = await apiClient.post('/bills/', payload);
+      const newBill = { ...response.data, date: new Date(response.data.date) };
+      setBills(prev => [newBill, ...prev].sort((a, b) => b.date - a.date));
+    } catch (error) {
+      console.error("Failed to add bill:", error.response?.data || error.message);
+      setError("Could not add bill.");
+    }
+  };
+
+  const updateBillStatus = async (billId, status) => {
+    try {
+      // We will use the custom action we created
+      const response = await apiClient.post(`/bills/${billId}/mark_as_paid/`);
+      const updatedBill = { ...response.data, date: new Date(response.data.date) };
+      setBills(prev => prev.map(b => (b.id === billId ? updatedBill : b)));
+    } catch (error) {
+      console.error("Failed to update bill status:", error.response?.data || error.message);
+      setError("Could not update bill status.");
+    }
+  };
+
   const trainers = useMemo(() => users.filter(u => u.role === Role.TRAINER), [users]);
   const students = useMemo(() => users.filter(u => u.role === Role.STUDENT), [users]);
   
   const value = {
-    users, trainers, students, materials, schedules, colleges, applications,
+    users, trainers, students, materials, schedules, colleges, applications, bills,
     removeApplication,
     addMaterial,
     updateMaterial,
@@ -250,7 +371,14 @@ export const DataProvider = ({ children }) => {
     updateCollege,
     deleteCollege,
     addUser,
+    updateUser,
+    deleteUser,
     assignMaterialsToStudent,
+    addSchedule,
+    updateSchedule,
+    deleteSchedule,
+    addBill,
+    updateBillStatus,
   };
 
   return (
