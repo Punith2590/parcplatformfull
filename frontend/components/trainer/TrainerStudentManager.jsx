@@ -1,3 +1,5 @@
+// frontend/components/trainer/TrainerStudentManager.jsx
+
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -13,12 +15,14 @@ const TrainerStudentManager = () => {
   const myStudents = useMemo(() => {
     if (!trainer) return [];
     
+    // Find all unique course names assigned to this trainer
     const trainerCourses = [...new Set(
         schedules
-            .filter(s => s.trainerId === trainer.id)
+            .filter(s => s.trainer === trainer.user_id) // Match based on trainer ID
             .map(s => s.course)
     )];
 
+    // Filter students who are enrolled in one of the trainer's courses
     return students.filter(student => student.course && trainerCourses.includes(student.course));
   }, [students, schedules, trainer]);
 
@@ -40,7 +44,7 @@ const TrainerStudentManager = () => {
       <div className="mt-8 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
           <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-            <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 sm:rounded-lg border border-slate-200">
+            <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 sm:rounded-lg border">
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
                   <tr>
@@ -53,9 +57,9 @@ const TrainerStudentManager = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
-                  {myStudents.length > 0 ? myStudents.map((student) => (
+                  {myStudents.map((student) => (
                     <tr key={student.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{student.name}</td>
+                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{student.full_name}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{student.email}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{student.course}</td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
@@ -65,13 +69,7 @@ const TrainerStudentManager = () => {
                         </button>
                       </td>
                     </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={4} className="text-center py-10 text-slate-500">
-                        No students found in your courses.
-                      </td>
-                    </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>

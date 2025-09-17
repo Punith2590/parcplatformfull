@@ -1,30 +1,34 @@
 # backend/core/views.py
 
-from django.http import FileResponse # <-- THIS IS THE FIX
+from django.http import FileResponse
+from django.core.mail import send_mail
+from django.utils import timezone
+from django.db.models import Sum
 from rest_framework import viewsets, status
-from rest_framework.parsers import MultiPartParser, FormParser 
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
-from django.db.models import Sum
 from rest_framework.views import APIView
-from .models import Assessment, User, College, Material, Schedule, TrainerApplication, Bill, StudentAttempt
+from .models import (
+    User, College, Material, Schedule, TrainerApplication, Bill,
+    Assessment, StudentAttempt
+)
 from .serializers import (
-    UserSerializer, CollegeSerializer, MaterialSerializer, 
-    ScheduleSerializer, MyTokenObtainPairSerializer, TrainerApplicationSerializer, BillSerializer, StudentAttemptSerializer, AssessmentSerializer
+    UserSerializer, CollegeSerializer, MaterialSerializer,
+    ScheduleSerializer, MyTokenObtainPairSerializer, TrainerApplicationSerializer,
+    BillSerializer, AssessmentSerializer, StudentAttemptSerializer
 )
 import secrets
 from rest_framework_simplejwt.views import TokenObtainPairView
 
-# This view is for logging in and is public by default.
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
-# This ViewSet is for the public trainer onboarding form.
 class TrainerApplicationViewSet(viewsets.ModelViewSet):
     queryset = TrainerApplication.objects.filter(status='PENDING')
     serializer_class = TrainerApplicationSerializer
-    permission_classes = [AllowAny] 
+    permission_classes = [AllowAny]
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def approve(self, request, pk=None):
@@ -39,17 +43,30 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
                 'expertise': application.expertise_domains,
                 'experience': application.experience,
                 'role': 'TRAINER',
-                'is_active': True,
+                'is_active': False,  # User is created but cannot log in yet
                 'resume': application.resume
             }
         )
+
         if not created:
             return Response({'error': 'A user with this email already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
         application.status = 'APPROVED'
         application.save()
+
+        # Send approval email (no credentials)
+        send_mail(
+            'Your Application has been Approved!',
+            f'Hi {user.first_name},\n\nCongratulations! Your application to become a trainer at Parc Platform has been approved. '
+            'You will receive another email with your login credentials once you have been assigned to your first schedule.\n\n'
+            'Best regards,\nThe Parc Platform Team',
+            'admin@parcplatform.com',
+            [user.email],
+            fail_silently=False,
+        )
+
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
-    
-    # This action allows viewing a resume from an application
+
     @action(detail=True, methods=['get'])
     def view_resume(self, request, pk=None):
         application = self.get_object()
@@ -101,36 +118,53 @@ class ScheduleViewSet(viewsets.ModelViewSet):
     queryset = Schedule.objects.all()
     serializer_class = ScheduleSerializer
 
-    def _update_trainer_expiry(self, trainer):
-        latest_schedule = Schedule.objects.filter(trainer=trainer).order_by('-end_date').first()
+    def _update_trainer_expiry_and_send_credentials(self, trainer):
+        latest_schedule = Schedule.objects.filter(
+            trainer=trainer,
+            end_date__gte=timezone.now()
+        ).order_by('-end_date').first()
+
+        password_changed = False
+        if not trainer.is_active or (trainer.access_expiry_date and trainer.access_expiry_date < timezone.now()):
+            temp_password = secrets.token_urlsafe(8)
+            trainer.set_password(temp_password)
+            trainer.is_active = True
+            password_changed = True
+
         if latest_schedule:
             trainer.access_expiry_date = latest_schedule.end_date
             trainer.save()
+            
+            if password_changed:
+                send_mail(
+                    'Your Parc Platform Login Credentials',
+                    f'Hi {trainer.first_name},\n\nYou have been assigned to a new schedule. Please use the following temporary credentials to log in.\n\n'
+                    f'Username: {trainer.email}\n'
+                    f'Password: {temp_password}\n\n'
+                    f'Your access will be valid until: {trainer.access_expiry_date.strftime("%Y-%m-%d %H:%M")}\n\n'
+                    'Best regards,\nThe Parc Platform Team',
+                    'admin@parcplatform.com',
+                    [trainer.email],
+                    fail_silently=False,
+                )
+                print(f"--- SENT NEW CREDENTIALS TO: {trainer.email} | TEMP PASSWORD: {temp_password} ---")
         else:
+            trainer.is_active = False
             trainer.access_expiry_date = None
             trainer.save()
 
     def perform_create(self, serializer):
         schedule = serializer.save()
-        trainer = schedule.trainer
-    
-        if not trainer.is_active:
-            temp_password = secrets.token_urlsafe(8)
-            trainer.set_password(temp_password)
-            trainer.is_active = True
-            trainer.save()
-            print(f"--- SENDING CREDENTIALS TO {trainer.email} | PASSWORD: {temp_password} ---")
-    
-        self._update_trainer_expiry(trainer)
+        self._update_trainer_expiry_and_send_credentials(schedule.trainer)
 
     def perform_update(self, serializer):
         schedule = serializer.save()
-        self._update_trainer_expiry(schedule.trainer)
+        self._update_trainer_expiry_and_send_credentials(schedule.trainer)
 
     def perform_destroy(self, instance):
         trainer = instance.trainer
         instance.delete()
-        self._update_trainer_expiry(trainer)
+        self._update_trainer_expiry_and_send_credentials(trainer)
 
 class BillViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -153,13 +187,11 @@ class StudentAttemptViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = StudentAttempt.objects.all()
     serializer_class = StudentAttemptSerializer
-    
 
 class ReportingDashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
-        # Calculate leaderboard data by summing scores for each student
         leaderboard_data = User.objects.filter(role='STUDENT') \
             .annotate(total_score=Sum('attempts__score')) \
             .filter(total_score__isnull=False) \
@@ -173,7 +205,6 @@ class ReportingDashboardView(APIView):
             } for entry in leaderboard_data
         ]
 
-        # Get the 10 most recent student attempts
         recent_attempts_queryset = StudentAttempt.objects.select_related('student', 'assessment').order_by('-timestamp')[:10]
         recent_attempts = StudentAttemptSerializer(recent_attempts_queryset, many=True).data
 
