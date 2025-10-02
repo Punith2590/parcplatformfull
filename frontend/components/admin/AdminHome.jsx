@@ -1,6 +1,6 @@
 // frontend/components/admin/AdminHome.jsx
 
-import React from 'react';
+import React, { useMemo } from 'react'; // <-- Import useMemo
 import { useData } from '../../context/DataContext';
 import { UserCheckIcon, BookOpenIcon, CalendarIcon, ChartBarIcon } from '../icons/Icons';
 
@@ -32,6 +32,13 @@ const StatCard = ({ title, value, icon: Icon, onClick, color }) => {
 const AdminHome = ({ setView }) => {
     const { applications, materials, schedules, trainers } = useData();
 
+    // --- THIS IS THE FIX ---
+    // We calculate the count of only the schedules that have not yet ended.
+    const upcomingSchedulesCount = useMemo(() => {
+        const now = new Date();
+        return schedules.filter(schedule => new Date(schedule.end_date) > now).length;
+    }, [schedules]);
+
     return (
         <div>
             <h1 className="text-3xl font-bold text-pygenic-blue">Admin Dashboard</h1>
@@ -40,7 +47,7 @@ const AdminHome = ({ setView }) => {
             <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
                 <StatCard title="Pending Approvals" value={applications.length} icon={UserCheckIcon} onClick={() => setView('approvals')} color="violet" />
                 <StatCard title="Total Materials" value={materials.length} icon={BookOpenIcon} onClick={() => setView('materials')} color="sky" />
-                <StatCard title="Upcoming Schedules" value={schedules.length} icon={CalendarIcon} onClick={() => setView('schedules')} color="amber" />
+                <StatCard title="Upcoming Schedules" value={upcomingSchedulesCount} icon={CalendarIcon} onClick={() => setView('schedules')} color="amber" />
                 <StatCard title="Active Trainers" value={trainers.length} icon={ChartBarIcon} onClick={() => setView('reporting')} color="emerald" />
             </div>
             

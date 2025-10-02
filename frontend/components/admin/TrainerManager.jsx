@@ -4,13 +4,12 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { Role } from '../../types';
 import Modal from '../shared/Modal';
-import { SearchIcon, PencilIcon, XIcon, EyeIcon } from '../icons/Icons';
+import { PencilIcon, XIcon, EyeIcon } from '../icons/Icons';
 
 const TrainerManager = () => {
-  const { trainers, addUser, updateUser, deleteUser } = useData();
+  const { trainers, addUser, updateUser, deleteUser, globalSearchTerm } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
   
   const API_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
 
@@ -74,7 +73,8 @@ const TrainerManager = () => {
       alert("No resume found for this trainer.");
       return;
     }
-    window.open(trainer.resume, '_blank');
+    const resumeUrl = `${API_URL}${trainer.resume}`;
+    window.open(resumeUrl, '_blank');
   };
   
   const handleCopyLink = () => {
@@ -84,14 +84,14 @@ const TrainerManager = () => {
   };
 
   const filteredTrainers = useMemo(() => {
-    if (!searchTerm) return trainers;
-    const lowercasedFilter = searchTerm.toLowerCase();
+    if (!globalSearchTerm) return trainers;
+    const lowercasedFilter = globalSearchTerm.toLowerCase();
     return trainers.filter(trainer =>
       trainer.full_name.toLowerCase().includes(lowercasedFilter) ||
       trainer.email.toLowerCase().includes(lowercasedFilter) ||
       (trainer.expertise && trainer.expertise.toLowerCase().includes(lowercasedFilter))
     );
-  }, [trainers, searchTerm]);
+  }, [trainers, globalSearchTerm]);
 
   return (
     <div>
@@ -110,23 +110,7 @@ const TrainerManager = () => {
         </div>
       </div>
       
-       <div className="mt-6">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <SearchIcon className="w-5 h-5 text-slate-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search trainers by name, email, or expertise..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full py-2.5 pl-10 pr-4 text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-            aria-label="Search trainers"
-          />
-        </div>
-      </div>
-
-      <div className="mt-4 flow-root">
+      <div className="mt-8 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
           <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
             <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 sm:rounded-lg border">

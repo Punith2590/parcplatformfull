@@ -3,22 +3,22 @@
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import Modal from '../shared/Modal';
-import { SearchIcon, PencilIcon, XIcon } from '../icons/Icons';
+import { PencilIcon, XIcon } from '../icons/Icons';
 
 const ScheduleManager = () => {
-  const { schedules, trainers, materials, colleges, addSchedule, updateSchedule, deleteSchedule } = useData();
+  const { schedules, trainers, materials, colleges, addSchedule, updateSchedule, deleteSchedule, globalSearchTerm } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [editingSchedule, setEditingSchedule] = useState(null);
+  const [showAllSchedules, setShowAllSchedules] = useState(false);
 
   const getInitialScheduleState = () => {
     const startDate = new Date();
-    startDate.setHours(startDate.getHours() + 1, 0, 0, 0); // Set to the next hour
+    startDate.setHours(startDate.getHours() + 1, 0, 0, 0);
     const endDate = new Date(startDate);
     endDate.setHours(startDate.getHours() + 1);
     return {
       trainerId: '',
-      college: '', // This will hold the college's ID
+      college: '',
       course: '',
       startDate,
       endDate,
@@ -57,8 +57,8 @@ const ScheduleManager = () => {
         trainerId: schedule.trainer,
         college: schedule.college,
         course: schedule.course,
-        startDate: schedule.startDate,
-        endDate: schedule.endDate,
+        startDate: new Date(schedule.start_date),
+        endDate: new Date(schedule.end_date),
         materialIds: schedule.materials,
       });
     } else {
@@ -98,14 +98,17 @@ const ScheduleManager = () => {
   const getCollegeName = (collegeId) => colleges.find(c => c.id === collegeId)?.name || 'Unknown College';
 
   const filteredSchedules = useMemo(() => {
-    if (!searchTerm) return schedules;
-    const lowercasedFilter = searchTerm.toLowerCase();
-    return schedules.filter(schedule =>
+    let schedulesToFilter = showAllSchedules ? schedules : schedules.filter(s => new Date(s.end_date) >= new Date());
+
+    if (!globalSearchTerm) return schedulesToFilter;
+
+    const lowercasedFilter = globalSearchTerm.toLowerCase();
+    return schedulesToFilter.filter(schedule =>
       schedule.course.toLowerCase().includes(lowercasedFilter) ||
       getCollegeName(schedule.college).toLowerCase().includes(lowercasedFilter) ||
       getTrainerName(schedule.trainer).toLowerCase().includes(lowercasedFilter)
     );
-  }, [schedules, searchTerm, trainers, colleges]);
+  }, [schedules, globalSearchTerm, trainers, colleges, showAllSchedules]);
 
   const availableCourses = useMemo(() => [...new Set(materials.map(m => m.course))], [materials]);
   
@@ -127,19 +130,22 @@ const ScheduleManager = () => {
         </button>
       </div>
       
-      <div className="mt-6">
-        <div className="relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <SearchIcon className="w-5 h-5 text-slate-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search schedules by course, college, or trainer..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full py-2.5 pl-10 pr-4 text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
-            aria-label="Search schedules"
-          />
+      <div className="mt-6 flex justify-end items-center">
+        <div className="flex items-center space-x-2">
+            <span className={`text-sm font-medium ${!showAllSchedules ? 'text-violet-600' : 'text-slate-500'}`}>
+                Upcoming
+            </span>
+            <button
+                onClick={() => setShowAllSchedules(!showAllSchedules)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 ${showAllSchedules ? 'bg-violet-600' : 'bg-slate-200'}`}
+            >
+                <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showAllSchedules ? 'translate-x-5' : 'translate-x-0'}`}
+                />
+            </button>
+            <span className={`text-sm font-medium ${showAllSchedules ? 'text-violet-600' : 'text-slate-500'}`}>
+                All
+            </span>
         </div>
       </div>
       
@@ -164,15 +170,15 @@ const ScheduleManager = () => {
                               <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{getTrainerName(schedule.trainer)}</td>
                               <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{getCollegeName(schedule.college)}</td>
                               <td className="px-3 py-4 text-sm text-slate-500">
-                                  <div><span className="font-semibold">Start:</span> {schedule.startDate.toLocaleString()}</div>
-                                  <div><span className="font-semibold">End:</span> {schedule.endDate.toLocaleString()}</div>
+                                  <div><span className="font-semibold">Start:</span> {new Date(schedule.start_date).toLocaleString()}</div>
+                                  <div><span className="font-semibold">End:</span> {new Date(schedule.end_date).toLocaleString()}</div>
                               </td>
                               <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{schedule.materials.length}</td>
                               <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                                <button onClick={() => handleOpenModal(schedule)} className="p-2 text-blue-500 hover:text-blue-800 rounded-md bg-blue-100 hover:bg-blue-200">
+                                <button onClick={() => handleOpenModal(schedule)} className="p-2 text-blue-500 hover:text-blue-800 rounded-md bg-blue-100 hover:bg-blue-200" title="Edit Schedule">
                                     <PencilIcon className="w-4 h-4" />
                                 </button>
-                                <button onClick={() => handleDelete(schedule.id)} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200">
+                                <button onClick={() => handleDelete(schedule.id)} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200" title="Delete Schedule">
                                     <XIcon className="w-4 h-4" />
                                 </button>
                               </td>

@@ -4,7 +4,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     UserViewSet, CollegeViewSet, MaterialViewSet, ScheduleViewSet,
-    TrainerApplicationViewSet, BillViewSet, AssessmentViewSet, StudentAttemptViewSet, ReportingDashboardView
+    TrainerApplicationViewSet, BillViewSet, AssessmentViewSet, StudentAttemptViewSet, ReportingDashboardView,
+    CourseViewSet, BatchViewSet
 )
 
 # This router automatically creates all the API endpoints for our views
@@ -17,6 +18,8 @@ router.register(r'applications', TrainerApplicationViewSet, basename='applicatio
 router.register(r'bills', BillViewSet, basename='bill')
 router.register(r'assessments', AssessmentViewSet, basename='assessment')
 router.register(r'attempts', StudentAttemptViewSet, basename='attempt')
+router.register(r'courses', CourseViewSet, basename='course')
+router.register(r'batches', BatchViewSet, basename='batch')
 
 # This line gathers all the URLs created by the router.
 urlpatterns = [

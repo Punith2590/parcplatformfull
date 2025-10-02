@@ -1,3 +1,5 @@
+// frontend/components/student/StudentHome.jsx
+
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
@@ -5,10 +7,17 @@ import { AcademicCapIcon, ChartBarIcon } from '../icons/Icons';
 
 const StudentHome = ({ setView }) => {
   const { user } = useAuth();
-  const { studentAttempts } = useData();
+  const { studentAttempts = [] } = useData();
 
-  const myAttempts = studentAttempts.filter(a => a.studentName === user?.name);
-  const latestScore = myAttempts.length > 0 ? myAttempts.sort((a,b) => b.timestamp.getTime() - a.timestamp.getTime())[0].score : 'N/A';
+  // Filter attempts by the reliable student ID
+  const myAttempts = studentAttempts.filter(a => a.student === user?.user_id);
+  
+  // Sort by timestamp to find the most recent attempt
+  const latestAttempt = myAttempts.length > 0 
+    ? myAttempts.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
+    : null;
+    
+  const latestScore = latestAttempt ? latestAttempt.score : 'N/A';
 
   return (
     <div>

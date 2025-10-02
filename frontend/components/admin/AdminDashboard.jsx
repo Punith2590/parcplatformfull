@@ -12,6 +12,8 @@ import TrainerManager from './TrainerManager';
 import CollegeManager from './CollegeManager';
 import CollegeInformationDashboard from './CollegeInformationDashboard';
 import BillingManager from './BillingManager';
+import CourseManager from './CourseManager';
+import BatchManager from './BatchManager';
 
 const AdminDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
@@ -42,6 +44,10 @@ const AdminDashboard = () => {
         return <CollegeManager onCollegeSelect={navigateToCollege} />;
       case 'materials':
         return <MaterialManager />;
+      case 'courses':
+        return <CourseManager />;
+      case 'batches':
+        return <BatchManager />;
       case 'schedules':
         return <ScheduleManager />;
       case 'reporting':

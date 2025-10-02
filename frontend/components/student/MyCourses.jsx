@@ -1,33 +1,44 @@
+// frontend/components/student/MyCourses.jsx
+
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import Modal from '../shared/Modal';
-import MaterialViewer from '../trainer/MaterialViewer';
+import MaterialViewer from '../shared/MaterialViewer'; // Use the shared viewer
 import { BookOpenIcon } from '../icons/Icons';
+
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
 
 const MyCourses = () => {
   const { user } = useAuth();
   const { schedules, materials } = useData();
   const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [selectedMaterials, setSelectedMaterials] = useState([]);
+  const [selectedMaterial, setSelectedMaterial] = useState(null);
 
   const myCourseMaterials = useMemo(() => {
     if (!user || !user.course) return [];
     
+    // Materials from schedules for the student's course
     const scheduleMaterialIds = schedules
       .filter(s => s.course === user.course)
-      .flatMap(s => s.materialIds);
+      .flatMap(s => s.materials);
 
-    const assignedMaterialIds = user.assignedMaterialIds || [];
+    // Materials directly assigned to the student
+    const assignedMaterialIds = user.assigned_materials || [];
 
     const allMaterialIds = [...new Set([...scheduleMaterialIds, ...assignedMaterialIds])];
 
     return materials.filter(m => allMaterialIds.includes(m.id));
   }, [schedules, materials, user]);
   
-  const handleViewMaterials = (materialsToShow) => {
-    setSelectedMaterials(materialsToShow);
-    setIsViewerOpen(true);
+  const handleViewMaterial = (material) => {
+    const fileUrl = `${BACKEND_URL}${material.content}`;
+    if (material.type === 'VIDEO') {
+        setSelectedMaterial({ ...material, content: fileUrl });
+        setIsViewerOpen(true);
+    } else {
+        window.open(fileUrl, '_blank');
+    }
   };
 
   return (
@@ -50,10 +61,9 @@ const MyCourses = () => {
                   </div>
                   <h3 className="mt-4 text-lg font-bold text-slate-900">{material.title}</h3>
                   <p className="text-sm text-slate-500">{material.course}</p>
-                  <p className="mt-2 text-sm text-slate-600 line-clamp-2">{material.content}</p>
                 </div>
                 <div className="mt-4">
-                     <button onClick={() => handleViewMaterials([material])} className="w-full px-3 py-2 text-sm font-medium text-center text-white bg-violet-600 rounded-lg hover:bg-violet-700 focus:ring-4 focus:outline-none focus:ring-violet-300">
+                     <button onClick={() => handleViewMaterial(material)} className="w-full px-3 py-2 text-sm font-medium text-center text-white bg-violet-600 rounded-lg hover:bg-violet-700">
                          View Material
                      </button>
                 </div>
@@ -68,8 +78,8 @@ const MyCourses = () => {
         )}
       </div>
 
-      <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={`Viewing Materials`} size="xl">
-          <MaterialViewer materials={selectedMaterials} />
+      <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={selectedMaterial?.title || 'Material Viewer'} size="xl">
+          <MaterialViewer material={selectedMaterial} />
       </Modal>
     </div>
   );

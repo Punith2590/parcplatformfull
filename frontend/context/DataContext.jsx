@@ -18,8 +18,11 @@ export const DataProvider = ({ children }) => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [studentAttempts, setStudentAttempts] = useState([]);
   const [assessments, setAssessments] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
 
   const fetchedRef = useRef(false);
   const safetyTimerRef = useRef(null);
@@ -34,7 +37,7 @@ export const DataProvider = ({ children }) => {
     let cancelled = false;
     const fetchAllData = async () => {
       if (!user) {
-        setUsers([]); setMaterials([]); setSchedules([]); setColleges([]); setApplications([]); setBills([]); setLeaderboard([]); setStudentAttempts([]); setAssessments([]); fetchedRef.current = false; setIsLoading(false); return;
+        setUsers([]); setMaterials([]); setSchedules([]); setColleges([]); setApplications([]); setBills([]); setLeaderboard([]); setStudentAttempts([]); setAssessments([]); setCourses([]); setBatches([]); fetchedRef.current = false; setIsLoading(false); return;
       }
       if (fetchedRef.current) {
         if (isLoading) {
@@ -68,6 +71,8 @@ export const DataProvider = ({ children }) => {
           { key: 'bills', url: '/bills/' },
           { key: 'reporting', url: '/reporting/' },
           { key: 'assessments', url: '/assessments/' },
+          { key: 'courses', url: '/courses/' },
+          { key: 'batches', url: '/batches/' },
         ];
 
         const withTimeout = (p, ms, key) => Promise.race([
@@ -99,6 +104,8 @@ export const DataProvider = ({ children }) => {
                   setBills(data.map(b => ({ ...b, date: new Date(b.date) })));
                   break;
                 case 'assessments': setAssessments(data); break;
+                case 'courses': setCourses(data); break;
+                case 'batches': setBatches(data); break;
                 case 'reporting':
                   setLeaderboard(data.leaderboard || []);
                   setStudentAttempts(data.student_attempts.map(a => ({ ...a, timestamp: new Date(a.timestamp) })) || []);
@@ -153,17 +160,15 @@ export const DataProvider = ({ children }) => {
 
   const addSchedule = async (scheduleData) => {
     try {
-      // The backend expects trainer, college, and materials as IDs
       const payload = {
         trainer: scheduleData.trainerId,
-        college: scheduleData.college, // Assuming this is the college ID or name based on your model
+        college: scheduleData.college,
         course: scheduleData.course,
         start_date: scheduleData.startDate.toISOString(),
         end_date: scheduleData.endDate.toISOString(),
         materials: scheduleData.materialIds,
       };
       const response = await apiClient.post('/schedules/', payload);
-      // Convert dates back to Date objects for the frontend state
       const newSchedule = {
         ...response.data,
         startDate: new Date(response.data.start_date),
@@ -279,7 +284,6 @@ export const DataProvider = ({ children }) => {
       const email = userData.email?.trim();
       if (!name || !email) throw new Error('Name and Email are required');
       const postData = { ...userData, name, email };
-      console.log('[DataContext.addUser] POST /users/ payload:', postData);
       const response = await apiClient.post('/users/', postData);
       setUsers(prev => [response.data, ...prev]);
     } catch (error) {
@@ -334,7 +338,7 @@ export const DataProvider = ({ children }) => {
     try {
       const payload = {
         trainer: billData.trainerId,
-        date: billData.date.toISOString().split('T')[0], // Format as YYYY-MM-DD
+        date: billData.date.toISOString().split('T')[0],
         expenses: billData.expenses,
       };
       const response = await apiClient.post('/bills/', payload);
@@ -348,7 +352,6 @@ export const DataProvider = ({ children }) => {
 
   const updateBillStatus = async (billId, status) => {
     try {
-      // We will use the custom action we created
       const response = await apiClient.post(`/bills/${billId}/mark_as_paid/`);
       const updatedBill = { ...response.data, date: new Date(response.data.date) };
       setBills(prev => prev.map(b => (b.id === billId ? updatedBill : b)));
@@ -358,11 +361,169 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const bulkAddStudents = async (collegeName, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('college', collegeName);
+
+    try {
+      const response = await apiClient.post('/users/bulk_create_students/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      const usersResponse = await apiClient.get('/users/');
+      setUsers(usersResponse.data);
+      return { success: true, message: response.data.status };
+    } catch (error) {
+      const errorData = error.response?.data;
+      console.error("Failed to bulk add students:", errorData);
+      const errorMessage = errorData?.errors ? errorData.errors.join('\n') : (errorData?.error || "An unknown error occurred.");
+      setError(errorMessage);
+      return { success: false, message: errorMessage };
+    }
+  };
+
+  const addCourse = async (courseData) => {
+    try {
+      const response = await apiClient.post('/courses/', courseData);
+      setCourses(prev => [response.data, ...prev]);
+    } catch (error) {
+      console.error("Failed to add course:", error.response?.data || error.message);
+      setError("Could not add course.");
+    }
+  };
+
+  const updateCourse = async (courseId, courseData) => {
+    try {
+      const response = await apiClient.patch(`/courses/${courseId}/`, courseData);
+      setCourses(prev => prev.map(c => (c.id === courseId ? response.data : c)));
+    } catch (error) {
+      console.error("Failed to update course:", error.response?.data || error.message);
+      setError("Could not update course.");
+    }
+  };
+
+  const deleteCourse = async (courseId) => {
+    try {
+      await apiClient.delete(`/courses/${courseId}/`);
+      setCourses(prev => prev.filter(c => c.id !== courseId));
+    } catch (error) {
+      console.error("Failed to delete course:", error);
+      setError("Could not delete course.");
+    }
+  };
+
+  const addBatchWithStudents = async (batchData, file) => {
+    const formData = new FormData();
+    formData.append('course', batchData.course);
+    formData.append('name', batchData.name);
+    formData.append('start_date', batchData.start_date);
+    formData.append('end_date', batchData.end_date);
+    formData.append('file', file);
+    
+    try {
+      const response = await apiClient.post('/batches/create_with_students/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setBatches(prev => [response.data, ...prev]);
+      const usersResponse = await apiClient.get('/users/');
+      setUsers(usersResponse.data);
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to add batch with students:", error.response?.data || error.message);
+      setError("Could not create batch. Please check the data and file.");
+      return { success: false };
+    }
+  };
+
+  const addStudentsToBatchFromFile = async (batchId, file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await apiClient.post(`/batches/${batchId}/add_students_from_file/`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      // Refresh data
+      setBatches(prev => prev.map(b => b.id === batchId ? response.data : b));
+      const usersResponse = await apiClient.get('/users/');
+      setUsers(usersResponse.data);
+      return { success: true, message: 'Students added successfully!' };
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || "Failed to upload students.";
+      console.error("Failed to add students from file:", error);
+      setError(errorMsg);
+      return { success: false, message: errorMsg };
+    }
+  };
+
+  const addStudentsToBatch = async (batchId, studentIds) => {
+    try {
+      const response = await apiClient.post(`/batches/${batchId}/add_students/`, { student_ids: studentIds });
+      // Refresh batches and users to reflect changes
+      setBatches(prev => prev.map(b => b.id === batchId ? response.data : b));
+      const usersResponse = await apiClient.get('/users/');
+      setUsers(usersResponse.data);
+    } catch (error) {
+      setError("Failed to add students to batch.");
+    }
+  };
+
+  const removeStudentsFromBatch = async (batchId, studentIds) => {
+    try {
+      const response = await apiClient.post(`/batches/${batchId}/remove_students/`, { student_ids: studentIds });
+      setBatches(prev => prev.map(b => b.id === batchId ? response.data : b));
+      const usersResponse = await apiClient.get('/users/');
+      setUsers(usersResponse.data);
+    } catch (error) {
+      setError("Failed to remove students from batch.");
+    }
+  };
+
+  const updateBatch = async (batchId, batchData) => {
+    try {
+      const response = await apiClient.patch(`/batches/${batchId}/`, batchData);
+      setBatches(prev => prev.map(b => (b.id === batchId ? response.data : b)));
+    } catch (error) {
+      console.error("Failed to update batch:", error.response?.data || error.message);
+      setError("Could not update batch.");
+    }
+  };
+
+  const deleteBatch = async (batchId) => {
+    try {
+      await apiClient.delete(`/batches/${batchId}/`);
+      setBatches(prev => prev.filter(b => b.id !== batchId));
+    } catch (error) {
+      console.error("Failed to delete batch:", error);
+      setError("Could not delete batch.");
+    }
+  };
+
+  const submitAssessmentAttempt = async (attemptData) => {
+    try {
+      const response = await apiClient.post('/attempts/', attemptData);
+      // Add the new attempt to the local state
+      setStudentAttempts(prev => [{ ...response.data, timestamp: new Date(response.data.timestamp) }, ...prev]);
+      // Manually refetch reporting data to update leaderboard
+      const reportingResponse = await apiClient.get('/reporting/');
+      setLeaderboard(reportingResponse.data.leaderboard || []);
+      return { success: true, message: 'Assessment submitted successfully!' };
+    } catch (error) {
+      console.error("Failed to submit assessment:", error.response?.data || error.message);
+      const errorMessage = error.response?.data?.detail || "Could not submit assessment.";
+      setError(errorMessage);
+      return { success: false, message: errorMessage };
+    }
+  };
+
   const trainers = useMemo(() => users.filter(u => u.role === Role.TRAINER), [users]);
   const students = useMemo(() => users.filter(u => u.role === Role.STUDENT), [users]);
   
   const value = {
     users, trainers, students, materials, schedules, colleges, applications, bills,
+    leaderboard, studentAttempts, assessments, courses, batches,
     removeApplication,
     addMaterial,
     updateMaterial,
@@ -377,8 +538,21 @@ export const DataProvider = ({ children }) => {
     addSchedule,
     updateSchedule,
     deleteSchedule,
+    addCourse, 
+    updateCourse, 
+    deleteCourse,
+    addBatch: addBatchWithStudents, 
+    updateBatch, 
+    deleteBatch,
     addBill,
     updateBillStatus,
+    globalSearchTerm,
+    setGlobalSearchTerm,
+    bulkAddStudents,
+    submitAssessmentAttempt,
+    addStudentsToBatch,
+    removeStudentsFromBatch,
+    addStudentsToBatchFromFile,
   };
 
   return (

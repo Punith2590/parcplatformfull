@@ -1,9 +1,10 @@
 # backend/core/serializers.py
 
 from rest_framework import serializers
-from .models import StudentAttempt, User, College, Material, Schedule, TrainerApplication, Expense, Bill, Assessment
+from .models import Batch, StudentAttempt, User, College, Material, Schedule, TrainerApplication, Expense, Bill, Assessment, Course
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -12,7 +13,30 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['username'] = user.username
         token['role'] = user.role
         token['name'] = user.get_full_name
+        token['course'] = user.course
         return token
+    
+    def validate(self, attrs):
+        # Run the default validation first
+        data = super().validate(attrs)
+
+        # self.user is now available after super().validate()
+        user = self.user
+
+        # --- THIS IS THE NEW SECURITY CHECK ---
+        # 1. Check if the user account is active
+        if not user.is_active:
+            raise serializers.ValidationError("Your account is inactive. Please contact an administrator.")
+
+        # 2. For trainers, check if their access has expired
+        if user.role == 'TRAINER':
+            if user.access_expiry_date and user.access_expiry_date < timezone.now():
+                # Deactivate the user for future login attempts
+                user.is_active = False
+                user.save()
+                raise serializers.ValidationError("Your access period has expired. Please contact an administrator to be assigned to a new schedule.")
+
+        return data
 
 class UserSerializer(serializers.ModelSerializer):
     name = serializers.CharField(write_only=True, required=True)
@@ -24,7 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'username', 'email', 'role', 'expertise', 'experience',
             'phone', 'course', 'college', 'access_expiry_date',
-            'assigned_materials', 'name', 'full_name', 'resume', 'assigned_assessments'
+            'assigned_materials', 'name', 'full_name', 'resume', 'assigned_assessments', 'batch'
         )
         extra_kwargs = {
             'email': {'required': True},
@@ -105,3 +129,16 @@ class StudentAttemptSerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentAttempt
         fields = ['id', 'student', 'student_name', 'assessment', 'assessment_title', 'course', 'score', 'timestamp']
+
+class CourseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Course
+        fields = '__all__'
+
+class BatchSerializer(serializers.ModelSerializer):
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    student_count = serializers.IntegerField(source='students.count', read_only=True)
+    
+    class Meta:
+        model = Batch
+        fields = ['id', 'course', 'course_name', 'name', 'start_date', 'end_date', 'student_count']

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PygenicArcLogo, DashboardIcon, UserCheckIcon, BookOpenIcon, CalendarIcon, ChartBarIcon, UsersIcon, AcademicCapIcon, TrophyIcon, ClipboardListIcon, CurrencyDollarIcon, StudentsIcon } from '../icons/Icons';
+import { PygenicArcLogo, DashboardIcon, UserCheckIcon, BookOpenIcon, CalendarIcon, ChartBarIcon, UsersIcon, AcademicCapIcon, TrophyIcon, ClipboardListIcon, CurrencyDollarIcon, StudentsIcon, GraduationCapIcon, CollectionIcon } from '../icons/Icons';
 import { Role } from '../../types';
 
 const adminNavItems = [
@@ -7,6 +7,8 @@ const adminNavItems = [
   { name: 'Trainer Approvals', view: 'approvals', icon: UserCheckIcon },
   { name: 'Trainers', view: 'trainers', icon: UsersIcon },
   { name: 'Colleges', view: 'colleges', icon: AcademicCapIcon },
+  { name: 'Courses', view: 'courses', icon: GraduationCapIcon },
+  { name: 'Batches', view: 'batches', icon: CollectionIcon },
   { name: 'Materials', view: 'materials', icon: BookOpenIcon },
   { name: 'Schedules', view: 'schedules', icon: CalendarIcon },
   { name: 'Reporting', view: 'reporting', icon: ChartBarIcon },

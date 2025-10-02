@@ -16,6 +16,7 @@ class User(AbstractUser):
     phone = models.CharField(max_length=20, blank=True, null=True)
     course = models.CharField(max_length=100, blank=True, null=True)
     college = models.CharField(max_length=100, blank=True, null=True)
+    batch = models.ForeignKey('Batch', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
     access_expiry_date = models.DateTimeField(null=True, blank=True)
     assigned_materials = models.ManyToManyField('Material', blank=True, related_name='assigned_users')
     resume = models.FileField(upload_to='resumes/', null=True, blank=True)
@@ -126,3 +127,32 @@ class StudentAttempt(models.Model):
     
     def __str__(self):
         return f"{self.student.username} - {self.assessment.title} - {self.score}%"
+    
+# backend/core/models.py
+
+class Course(models.Model):
+    # --- UPDATE THIS LINE ---
+    college = models.ForeignKey(College, on_delete=models.CASCADE, related_name='courses', null=True, blank=True)
+    
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True)
+
+    class Meta:
+        unique_together = ('college', 'name')
+
+    def __str__(self):
+        # Handle cases where a college might not be assigned
+        college_name = self.college.name if self.college else "General"
+        return f"{college_name} - {self.name}"
+
+class Batch(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='batches')
+    name = models.CharField(max_length=100)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    
+    class Meta:
+        unique_together = ('course', 'name')
+
+    def __str__(self):
+        return f"{self.course.name} - {self.name}"

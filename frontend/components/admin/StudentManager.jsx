@@ -3,10 +3,10 @@ import { useData } from '../../context/DataContext';
 import { Role } from '../../types';
 import Modal from '../shared/Modal';
 import AssignMaterialsModal from '../shared/AssignMaterialsModal';
-import { BookOpenIcon, SearchIcon } from '../icons/Icons';
+import { BookOpenIcon, SearchIcon, XIcon } from '../icons/Icons';
 
 const StudentManager = () => {
-  const { students, colleges, addUser } = useData();
+  const { students, colleges, addUser, deleteUser } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -36,6 +36,12 @@ const StudentManager = () => {
       setSelectedStudent(student);
       setIsAssignModalOpen(true);
   }
+
+  const handleDelete = (studentId) => {
+    if (window.confirm('Are you sure you want to delete this student? This action is permanent.')) {
+      deleteUser(studentId);
+    }
+  };
 
   const filteredStudents = useMemo(() => {
     if (!searchTerm) return students;
@@ -79,40 +85,33 @@ const StudentManager = () => {
       <div className="mt-4 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
           <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
-            <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 sm:rounded-lg border dark:border-slate-700">
-              <table className="min-w-full divide-y divide-slate-300 dark:divide-slate-700">
-                <thead className="bg-slate-50 dark:bg-slate-800/50">
+            <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 sm:rounded-lg border">
+              <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
                   <tr>
-                    <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 dark:text-white sm:pl-6">Name</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 dark:text-white">Email</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 dark:text-white">College</th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900 dark:text-white">Enrolled Course</th>
+                    {/* ... (other table headers) ... */}
                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">Actions</span>
+                      Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
-                  {filteredStudents.length > 0 ? filteredStudents.map((student) => (
-                    <tr key={student.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 dark:text-white sm:pl-6">{student.name}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-300">{student.email}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-300">{student.college}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 dark:text-slate-300">{student.course}</td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        <button onClick={() => handleOpenAssignModal(student)} className="text-violet-600 hover:text-violet-900 dark:text-violet-400 dark:hover:text-violet-200 flex items-center gap-1">
+                <tbody className="divide-y divide-slate-200 bg-white">
+                  {filteredStudents.map((student) => (
+                    <tr key={student.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{student.full_name}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{student.email}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{student.college}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{student.course}</td>
+                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
+                        <button onClick={() => handleOpenAssignModal(student)} className="p-2 text-violet-600 hover:text-violet-900 rounded-md bg-violet-100 hover:bg-violet-200" title="Assign Materials">
                             <BookOpenIcon className="w-4 h-4" />
-                            Assign Materials
+                        </button>
+                        <button onClick={() => handleDelete(student.id)} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200" title="Delete Student">
+                            <XIcon className="w-4 h-4" />
                         </button>
                       </td>
                     </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={5} className="text-center py-10 text-slate-500 dark:text-slate-400">
-                        {searchTerm ? 'No students match your search.' : 'No students found.'}
-                      </td>
-                    </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>

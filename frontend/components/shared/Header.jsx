@@ -2,11 +2,14 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useData } from '../../context/DataContext'; // Import useData
 import { MenuIcon, MailIcon, BoxIcon, StarIcon, SearchIcon, BellIcon } from '../icons/Icons';
-import UserProfileCard from './UserProfileCard'; // Import the new component
+import UserProfileCard from './UserProfileCard';
 
 const Header = ({ onMenuClick }) => {
     const { user } = useAuth();
+    // Get global search state from the context
+    const { globalSearchTerm, setGlobalSearchTerm } = useData();
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const profileRef = useRef(null);
 
@@ -40,9 +43,20 @@ const Header = ({ onMenuClick }) => {
                 </button>
             </div>
             <div className="flex items-center space-x-4">
-                <button className="text-slate-500 hover:text-slate-600 focus:outline-none">
-                    <SearchIcon className="h-5 w-5" />
-                </button>
+                {/* --- THIS IS THE NEW GLOBAL SEARCH BAR --- */}
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <SearchIcon className="w-5 h-5 text-slate-400" />
+                    </div>
+                    <input
+                        type="text"
+                        placeholder="Search..."
+                        value={globalSearchTerm}
+                        onChange={(e) => setGlobalSearchTerm(e.target.value)}
+                        className="w-full py-2 pl-10 pr-4 text-slate-900 bg-slate-50 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-500"
+                        aria-label="Global search"
+                    />
+                </div>
                 <button className="text-slate-500 hover:text-slate-600 focus:outline-none">
                     <BellIcon className="h-6 w-6" />
                 </button>

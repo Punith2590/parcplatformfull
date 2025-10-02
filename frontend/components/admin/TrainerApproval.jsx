@@ -19,6 +19,19 @@ const TrainerApproval = () => {
     }
   };
 
+  const declineApplication = async (applicationId) => {
+    if (window.confirm('Are you sure you want to decline this application? This action cannot be undone.')) {
+        try {
+            await apiClient.post(`/applications/${applicationId}/decline/`);
+            // The removeApplication function from context works perfectly here too
+            removeApplication(applicationId);
+        } catch (error) {
+            console.error("Failed to decline application:", error);
+            alert("Failed to decline application. Please try again.");
+        }
+    }
+  };
+
   const viewResume = (applicationId) => {
     // Construct the full URL for the resume
     const resumeUrl = `${API_URL}/applications/${applicationId}/view_resume/`;
@@ -63,6 +76,12 @@ const TrainerApproval = () => {
                         </button>
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                        <button
+                          onClick={() => declineApplication(app.id)}
+                          className="px-2.5 py-1.5 text-xs font-semibold text-red-700 bg-red-100 rounded-md shadow-sm hover:bg-red-200"
+                        >
+                          Decline
+                        </button>
                         <button
                           onClick={() => approveApplication(app.id)}
                           className="text-violet-600 hover:text-violet-900"
