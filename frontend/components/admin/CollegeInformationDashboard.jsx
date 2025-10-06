@@ -31,14 +31,29 @@ const StatCard = ({ title, value, icon: Icon }) => (
 // ## STUDENT TAB COMPONENT
 // ####################################################################
 const StudentTab = ({ college }) => {
-    const { students, addUser, deleteUser } = useData();
+    const { students, batches, addUser, deleteUser } = useData();
     const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null);
-    const [newStudent, setNewStudent] = useState({ name: '', email: '', course: '' });
+    const [newStudent, setNewStudent] = useState({ name: '', email: '', batchId: '' });
 
-    const collegeStudents = useMemo(() => students.filter(s => s.college === college.name), [students, college.name]);
+    const collegeBatches = useMemo(() => batches.filter(b => b.college === college.id), [batches, college.id]);
+
+    const collegeStudents = useMemo(() => {
+        if (!college || !batches || !students) return [];
+        const collegeBatchIds = new Set(collegeBatches.map(b => b.id));
+        const studentSet = new Set();
+        return students.filter(s => {
+            if (Array.isArray(s.batches) && s.batches.some(studentBatchId => collegeBatchIds.has(studentBatchId))) {
+                if (!studentSet.has(s.id)) {
+                    studentSet.add(s.id);
+                    return true;
+                }
+            }
+            return false;
+        });
+    }, [students, batches, college.id, collegeBatches]);
 
     const handleStudentInputChange = (e) => {
         const { name, value } = e.target;
@@ -47,9 +62,14 @@ const StudentTab = ({ college }) => {
 
     const handleStudentSubmit = (e) => {
         e.preventDefault();
-        addUser({ ...newStudent, college: college.name, role: Role.STUDENT });
+        addUser({
+            name: newStudent.name,
+            email: newStudent.email,
+            role: Role.STUDENT,
+            batches: [newStudent.batchId] // Pass the selected batch ID
+        });
         setIsAddStudentModalOpen(false);
-        setNewStudent({ name: '', email: '', course: '' });
+        setNewStudent({ name: '', email: '', batchId: '' });
     };
 
     const handleOpenAssignModal = (student) => {
@@ -81,22 +101,25 @@ const StudentTab = ({ college }) => {
                         <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Name</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Email</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Course</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Courses</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Actions</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-slate-200">
-                        {collegeStudents.map(s => (
-                            <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{s.full_name}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{s.email}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{s.course}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                                    <button onClick={() => handleOpenAssignModal(s)} className="p-2 text-violet-600 hover:text-violet-900 rounded-md bg-violet-100 hover:bg-violet-200" title="Assign Materials"><BookOpenIcon className="w-4 h-4" /></button>
-                                    <button onClick={() => handleDelete(s.id)} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200" title="Delete Student"><XIcon className="w-4 h-4" /></button>
-                                </td>
-                            </tr>
-                        ))}
+                        {collegeStudents.map(s => {
+                            const studentCourses = [...new Set(batches.filter(b => Array.isArray(s.batches) && s.batches.includes(b.id)).map(b => b.course_name))].join(', ');
+                            return (
+                                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{s.full_name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{s.email}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{studentCourses}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                                        <button onClick={() => handleOpenAssignModal(s)} className="p-2 text-violet-600 hover:text-violet-900 rounded-md bg-violet-100 hover:bg-violet-200" title="Assign Materials"><BookOpenIcon className="w-4 h-4" /></button>
+                                        <button onClick={() => handleDelete(s.id)} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200" title="Delete Student"><XIcon className="w-4 h-4" /></button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
@@ -112,8 +135,13 @@ const StudentTab = ({ college }) => {
                             <input type="email" name="email" id="email" value={newStudent.email} onChange={handleStudentInputChange} required className={formInputClasses} />
                         </div>
                         <div>
-                            <label htmlFor="course" className={formLabelClasses}>Course</label>
-                            <input type="text" name="course" id="course" value={newStudent.course} onChange={handleStudentInputChange} required className={formInputClasses} />
+                            <label htmlFor="batchId" className={formLabelClasses}>Batch</label>
+                            <select name="batchId" id="batchId" value={newStudent.batchId} onChange={handleStudentInputChange} required className={formInputClasses}>
+                                <option value="" disabled>Select a batch</option>
+                                {collegeBatches.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name} ({b.course_name})</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="mt-6 flex justify-end gap-4">
                             <button type="button" onClick={() => setIsAddStudentModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50">Cancel</button>
@@ -131,81 +159,44 @@ const StudentTab = ({ college }) => {
 // ####################################################################
 // ## COURSE TAB AND MODAL
 // ####################################################################
-const AddCourseModal = ({ onClose, onAddCourse, initialCourse }) => {
-    const [course, setCourse] = useState({ name: '', description: '' });
-    useEffect(() => { if (initialCourse) setCourse({ name: initialCourse.name, description: initialCourse.description }) }, [initialCourse]);
-    const handleChange = (e) => { setCourse(prev => ({ ...prev, [e.target.name]: e.target.value })) };
-    const handleSubmit = (e) => { e.preventDefault(); onAddCourse(course); };
-    return (
-        <Modal isOpen={true} onClose={onClose} title={initialCourse ? "Edit Course" : "Add New Course"}>
-            <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-slate-700">Course Name</label>
-                    <input type="text" name="name" id="name" value={course.name} onChange={handleChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500" />
-                </div>
-                <div>
-                    <label htmlFor="description" className="block text-sm font-medium text-slate-700">Description</label>
-                    <textarea name="description" id="description" value={course.description} onChange={handleChange} rows="3" className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500"></textarea>
-                </div>
-                <div className="mt-6 flex justify-end gap-4">
-                    <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50">Cancel</button>
-                    <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md shadow-sm hover:bg-violet-700">{initialCourse ? "Save Changes" : "Add Course"}</button>
-                </div>
-            </form>
-        </Modal>
-    );
-};
-
 const CourseTab = ({ college }) => {
-    const { courses, addCourse, updateCourse, deleteCourse, globalSearchTerm } = useData();
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [editingCourse, setEditingCourse] = useState(null);
-
-    const collegeCourses = useMemo(() => courses.filter(c => c.college === college.id), [courses, college.id]);
-
-    const handleAddOrUpdateCourse = (courseData) => {
-        if (editingCourse) {
-            updateCourse(editingCourse.id, { ...courseData, college: college.id });
-        } else {
-            addCourse({ ...courseData, college: college.id });
-        }
-        setShowAddModal(false);
-        setEditingCourse(null);
+    const { courses, updateCollegeCourses } = useData();
+    const [selectedCourseIds, setSelectedCourseIds] = useState(college.courses.map(c => c.id));
+  
+    const handleCheckboxChange = (courseId) => {
+      setSelectedCourseIds(prev =>
+        prev.includes(courseId)
+          ? prev.filter(id => id !== courseId)
+          : [...prev, courseId]
+      );
     };
-    
-    const handleUpdate = (course) => {
-        setEditingCourse(course);
-        setShowAddModal(true);
+  
+    const handleSaveChanges = () => {
+      updateCollegeCourses(college.id, selectedCourseIds);
     };
-
-    const handleDelete = (courseId) => {
-        if(window.confirm('Are you sure you want to delete this course? All associated batches will also be deleted.')) {
-            deleteCourse(courseId);
-        }
-    };
-    
+  
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-slate-900">Courses</h2>
-                <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">+ Add Course</button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {collegeCourses.map(course => (
-                    <div key={course.id} className="relative group bg-white p-4 rounded-lg shadow-sm border">
-                        <h3 className="font-semibold">{course.name}</h3>
-                        <p className="text-sm text-slate-500 line-clamp-2">{course.description}</p>
-                        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => handleUpdate(course)} className="p-1.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200"><PencilIcon className="w-4 h-4" /></button>
-                            <button onClick={() => handleDelete(course.id)} className="p-1.5 bg-red-100 text-red-600 rounded-full hover:bg-red-200"><XIcon className="w-4 h-4" /></button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-            {showAddModal && <AddCourseModal onClose={() => { setShowAddModal(false); setEditingCourse(null); }} onAddCourse={handleAddOrUpdateCourse} initialCourse={editingCourse}/>}
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-slate-900">Manage Courses Offered</h2>
+          <button onClick={handleSaveChanges} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">Save Changes</button>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {courses.map(course => (
+            <label key={course.id} className="flex items-center p-4 bg-white rounded-lg shadow-sm border hover:bg-slate-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectedCourseIds.includes(course.id)}
+                onChange={() => handleCheckboxChange(course.id)}
+                className="h-5 w-5 rounded border-slate-300 text-violet-600 focus:ring-violet-500"
+              />
+              <span className="ml-3 font-medium text-slate-800">{course.name}</span>
+            </label>
+          ))}
+        </div>
+      </div>
     );
-};
+  };
 
 // ####################################################################
 // ## BATCH TAB AND MODAL
@@ -224,7 +215,6 @@ const AddBatchModal = ({ onClose, onAddBatch, initialBatch, collegeCourses }) =>
             alert('Please upload a student list file for the new batch.');
             return;
         }
-        // Pass both the batch data and the file to the handler
         onAddBatch(batch, file);
     };
 
@@ -285,22 +275,21 @@ const AddBatchModal = ({ onClose, onAddBatch, initialBatch, collegeCourses }) =>
 };
 
 const BatchTab = ({ college }) => {
-    const { batches, addBatch, updateBatch, deleteBatch, courses, globalSearchTerm } = useData();
+    const { batches, addBatch, updateBatch, deleteBatch, globalSearchTerm } = useData();
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingBatch, setEditingBatch] = useState(null);
     const [viewingStudentsBatch, setViewingStudentsBatch] = useState(null); // <-- NEW STATE
 
-    const collegeCourses = useMemo(() => courses.filter(c => c.college === college.id), [courses, college.id]);
+    const collegeCourses = college.courses;
     const collegeBatches = useMemo(() => {
-        const courseIds = collegeCourses.map(c => c.id);
-        return batches.filter(b => courseIds.includes(b.course));
-    }, [batches, collegeCourses]);
+        return batches.filter(b => b.college === college.id);
+    }, [batches, college.id]);
 
     const handleAddOrUpdateBatch = (batchData, file) => {
         if (editingBatch) {
             updateBatch(editingBatch.id, batchData);
         } else {
-            addBatch(batchData, file);
+            addBatch({ ...batchData, college: college.id }, file);
         }
         setShowAddModal(false);
         setEditingBatch(null);
@@ -374,14 +363,28 @@ const BatchTab = ({ college }) => {
 // ####################################################################
 const CollegeInformationDashboard = ({ college, onBack }) => {
     const [activeTab, setActiveTab] = useState('students');
-    const { students, courses, schedules } = useData();
+    const { students, schedules, batches } = useData();
 
-    const collegeStudents = useMemo(() => students.filter(s => s.college === college.name), [students, college.name]);
-    const collegeCourses = useMemo(() => courses.filter(c => c.college === college.id), [courses, college.id]);
+    const collegeStudents = useMemo(() => {
+        if (!college || !batches || !students) return [];
+        const collegeBatchIds = new Set(batches.filter(b => b.college === college.id).map(b => b.id));
+        const studentSet = new Set();
+        return students.filter(s => {
+            if (Array.isArray(s.batches) && s.batches.some(studentBatchId => collegeBatchIds.has(studentBatchId))) {
+                if (!studentSet.has(s.id)) {
+                    studentSet.add(s.id);
+                    return true;
+                }
+            }
+            return false;
+        });
+    }, [students, batches, college.id]);
+
+    const collegeCourses = college.courses;
     const collegeSchedules = useMemo(() => schedules.filter(s => {
-        const courseIds = collegeCourses.map(c => c.id);
-        return courseIds.includes(s.course);
-    }), [schedules, collegeCourses]);
+        const batch = batches.find(b => b.id === s.batch);
+        return batch && batch.college === college.id;
+    }), [schedules, batches, college.id]);
 
     const renderTabContent = () => {
         switch (activeTab) {

@@ -1,11 +1,49 @@
 // frontend/components/admin/CourseManager.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import Modal from '../shared/Modal';
-import { PencilIcon, XIcon } from '../icons/Icons';
+import { PencilIcon, XIcon, BookOpenIcon } from '../icons/Icons';
 
-// --- Component 1: CourseCard (now inside this file) ---
+// --- Component to display materials for a course ---
+const CourseMaterialsModal = ({ course, onClose }) => {
+    const { materials } = useData();
+
+    const courseMaterials = useMemo(() => {
+        if (!course) return [];
+        // Filter materials where the material's course ID matches the selected course's ID
+        return materials.filter(material => material.course === course.id);
+    }, [materials, course]);
+
+    return (
+        <Modal isOpen={!!course} onClose={onClose} title={`Materials for ${course?.name}`} size="lg">
+            <div className="max-h-[60vh] overflow-y-auto">
+                {courseMaterials.length > 0 ? (
+                    <ul className="space-y-3">
+                        {courseMaterials.map(material => (
+                            <li key={material.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border">
+                                <div className="flex items-center gap-3">
+                                    <BookOpenIcon className="w-5 h-5 text-violet-500" />
+                                    <span className="font-medium text-slate-800">{material.title}</span>
+                                </div>
+                                <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-2 py-1 rounded-full">
+                                    {material.type}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <div className="text-center py-10 px-6 bg-slate-50 rounded-xl border">
+                        <h3 className="text-lg font-medium text-slate-900">No Materials Found</h3>
+                        <p className="mt-1 text-sm text-slate-500">There are no materials linked to this course yet.</p>
+                    </div>
+                )}
+            </div>
+        </Modal>
+    );
+};
+
+// --- Reusable Course Card Component ---
 const CourseCard = ({ course, onClick, onUpdate, onDelete }) => {
     return (
         <div className="relative group bg-white rounded-xl shadow-md overflow-hidden transition hover:shadow-lg flex flex-col">
@@ -25,7 +63,7 @@ const CourseCard = ({ course, onClick, onUpdate, onDelete }) => {
     );
 };
 
-// --- Component 2: AddCourseModal (now inside this file) ---
+// --- Modal for Adding/Editing a Course ---
 const AddCourseModal = ({ onClose, onAddCourse, initialCourse }) => {
     const [course, setCourse] = useState({ name: '', description: '' });
 
@@ -67,11 +105,12 @@ const AddCourseModal = ({ onClose, onAddCourse, initialCourse }) => {
     );
 };
 
-// --- Component 3: The Main CourseManager ---
+// --- Main CourseManager Component ---
 const CourseManager = () => {
   const { courses, addCourse, updateCourse, deleteCourse, globalSearchTerm } = useData();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [viewingMaterialsForCourse, setViewingMaterialsForCourse] = useState(null);
 
   const handleAddOrUpdateCourse = (courseData) => {
     if (editingCourse) {
@@ -86,6 +125,16 @@ const CourseManager = () => {
   const handleUpdate = (course) => {
     setEditingCourse(course);
     setShowAddModal(true);
+  };
+
+  const handleDelete = (courseId) => {
+    if (window.confirm('Are you sure you want to delete this course?')) {
+      deleteCourse(courseId);
+    }
+  };
+
+  const handleCardClick = (course) => {
+    setViewingMaterialsForCourse(course);
   };
 
   const filteredCourses = courses.filter(course =>
@@ -111,9 +160,9 @@ const CourseManager = () => {
           <CourseCard
             key={course.id}
             course={course}
-            onClick={() => {}}
+            onClick={handleCardClick}
             onUpdate={handleUpdate}
-            onDelete={deleteCourse}
+            onDelete={handleDelete}
           />
         ))}
       </div>
@@ -123,6 +172,12 @@ const CourseManager = () => {
           onAddCourse={handleAddOrUpdateCourse}
           initialCourse={editingCourse}
         />
+      )}
+      {viewingMaterialsForCourse && (
+          <CourseMaterialsModal
+              course={viewingMaterialsForCourse}
+              onClose={() => setViewingMaterialsForCourse(null)}
+          />
       )}
     </div>
   );

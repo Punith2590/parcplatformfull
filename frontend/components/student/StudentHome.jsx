@@ -18,6 +18,9 @@ const StudentHome = ({ setView }) => {
     : null;
     
   const latestScore = latestAttempt ? latestAttempt.score : 'N/A';
+  const courseText = (user && Array.isArray(user.courses) && user.courses.length > 0) 
+    ? user.courses.join(', ') 
+    : 'Not Enrolled';
 
   return (
     <div>
@@ -28,8 +31,8 @@ const StudentHome = ({ setView }) => {
         <div onClick={() => setView('courses')} className="p-6 bg-gradient-to-br from-violet-500 to-violet-600 text-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
             <div className="flex items-center justify-between">
                 <div>
-                    <p className="text-sm font-medium text-violet-200">Your Course</p>
-                    <p className="text-2xl font-bold">{user?.course || 'Not Enrolled'}</p>
+                    <p className="text-sm font-medium text-violet-200">Your Course(s)</p>
+                    <p className="text-2xl font-bold">{courseText}</p>
                 </div>
                 <div className="p-3 bg-white/20 rounded-full">
                     <AcademicCapIcon className="w-6 h-6 text-white" />

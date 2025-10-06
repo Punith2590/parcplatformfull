@@ -8,8 +8,9 @@ const BatchStudentsModal = ({ isOpen, onClose, batch }) => {
     const { students } = useData();
 
     const batchStudents = useMemo(() => {
-        if (!batch) return [];
-        return students.filter(student => student.batch === batch.id);
+        if (!batch || !students) return [];
+        // A student is in the batch if their batches array includes this batch's ID.
+        return students.filter(student => Array.isArray(student.batches) && student.batches.includes(batch.id));
     }, [students, batch]);
 
     if (!batch) return null;

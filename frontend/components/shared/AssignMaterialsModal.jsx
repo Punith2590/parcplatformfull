@@ -1,14 +1,12 @@
+// frontend/components/shared/AssignMaterialsModal.jsx
+
 import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import Modal from './Modal';
 
-const AssignMaterialsModal = ({ student, isOpen, onClose }) => {
-    const { materials, assignMaterialsToStudent } = useData();
-    const [selectedMaterialIds, setSelectedMaterialIds] = useState(student.assignedMaterialIds || []);
-
-    const courseMaterials = useMemo(() => {
-        return materials.filter(m => m.course === student.course);
-    }, [materials, student.course]);
+const AssignMaterialsModal = ({ student, isOpen, onClose, assignableMaterials }) => {
+    const { assignMaterialsToStudent } = useData();
+    const [selectedMaterialIds, setSelectedMaterialIds] = useState(student.assigned_materials || []);
 
     const handleCheckboxChange = (materialId) => {
         setSelectedMaterialIds(prev =>
@@ -28,15 +26,15 @@ const AssignMaterialsModal = ({ student, isOpen, onClose }) => {
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={`Assign Materials to ${student.name}`}
+            title={`Assign Materials to ${student.full_name}`}
         >
             <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                        Select materials from the student's course, "{student.course}", to assign directly.
+                        Select materials to assign directly to the student.
                     </p>
                     <div className="max-h-60 overflow-y-auto p-2 border rounded-md dark:border-slate-700 space-y-2">
-                        {courseMaterials.length > 0 ? courseMaterials.map(material => (
+                        {assignableMaterials && assignableMaterials.length > 0 ? assignableMaterials.map(material => (
                             <label key={material.id} className="flex items-center p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
                                 <input
                                     type="checkbox"
@@ -44,11 +42,11 @@ const AssignMaterialsModal = ({ student, isOpen, onClose }) => {
                                     onChange={() => handleCheckboxChange(material.id)}
                                     className="h-4 w-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 dark:bg-slate-700 dark:border-slate-600"
                                 />
-                                <span className="ml-3 text-sm text-slate-800 dark:text-slate-200">{material.title}</span>
+                                <span className="ml-3 text-sm text-slate-800 dark:text-slate-200">{material.title} ({material.course_name})</span>
                                 <span className="ml-auto text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 px-2 py-0.5 rounded-full">{material.type}</span>
                             </label>
                         )) : (
-                            <p className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">No materials found for this course.</p>
+                            <p className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">No assignable materials found.</p>
                         )}
                     </div>
                 </div>

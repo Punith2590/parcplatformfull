@@ -4,22 +4,27 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import Modal from '../shared/Modal';
-import MaterialViewer from '../shared/MaterialViewer'; // Use the shared viewer
-import { EyeIcon, XIcon } from '../icons/Icons';
+import MaterialViewer from '../shared/MaterialViewer';
+import { EyeIcon, XIcon, BookOpenIcon } from '../icons/Icons';
 import Calendar from './Calendar';
+
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
 
 const TrainerSchedules = () => {
   const { user } = useAuth();
-  const { schedules, materials } = useData();
-  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const { schedules } = useData();
+  const [isListModalOpen, setIsListModalOpen] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
+
+  // State for the actual video viewer modal
+  const [isVideoViewerOpen, setIsVideoViewerOpen] = useState(false);
+  const [materialForVideoViewer, setMaterialForVideoViewer] = useState(null);
 
   const mySchedules = useMemo(() => {
     if (!user) return [];
     return schedules
-      // Correctly filter schedules where the 'trainer' ID matches the logged-in user's ID
-      .filter(s => s.trainer === user.user_id)
+      .filter(s => s.trainer == user.user_id)
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
   }, [schedules, user]);
 
@@ -41,7 +46,18 @@ const TrainerSchedules = () => {
 
   const handleViewMaterials = (schedule) => {
     setSelectedSchedule(schedule);
-    setIsViewerOpen(true);
+    setIsListModalOpen(true);
+  };
+
+  const handleMaterialClick = (material) => {
+    const fileUrl = material.content.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
+
+    if (material.type === 'VIDEO') {
+        setMaterialForVideoViewer({ ...material, content: fileUrl });
+        setIsVideoViewerOpen(true);
+    } else {
+        window.open(fileUrl, '_blank');
+    }
   };
   
   const getScheduleHeader = () => {
@@ -51,11 +67,10 @@ const TrainerSchedules = () => {
       return 'Upcoming Schedules';
   };
 
-  // Find materials associated with the selected schedule for the viewer
   const materialsForSelectedSchedule = useMemo(() => {
     if (!selectedSchedule) return [];
-    return materials.filter(m => selectedSchedule.materials.includes(m.id));
-  }, [selectedSchedule, materials]);
+    return selectedSchedule.materials || [];
+  }, [selectedSchedule]);
 
 
   return (
@@ -85,7 +100,7 @@ const TrainerSchedules = () => {
                     <p className="text-sm font-semibold text-slate-500">
                     {schedule.startDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     </p>
-                    <h3 className="text-2xl font-bold text-pygenic-blue mt-1">{schedule.course}</h3>
+                    <h3 className="text-2xl font-bold text-pygenic-blue mt-1">{schedule.course_name}</h3>
                     <p className="text-md text-slate-600">at {schedule.college_name}</p>
                     <p className="text-sm text-slate-500 mt-2 font-mono">
                     {schedule.startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {schedule.endDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -112,12 +127,32 @@ const TrainerSchedules = () => {
       
       <Calendar schedules={mySchedules} onDateSelect={setSelectedDate} />
 
-      <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={`Materials for ${selectedSchedule?.course}`} size="xl">
-          {materialsForSelectedSchedule.map(material => (
-            <div key={material.id} className="mb-4">
-              <MaterialViewer material={material} />
-            </div>
-          ))}
+      {/* Modal for listing materials */}
+      <Modal isOpen={isListModalOpen} onClose={() => setIsListModalOpen(false)} title={`Materials for ${selectedSchedule?.course_name}`} size="lg">
+          {materialsForSelectedSchedule.length > 0 ? (
+            <ul className="space-y-3">
+              {materialsForSelectedSchedule.map(material => (
+                <li key={material.id}>
+                    <button onClick={() => handleMaterialClick(material)} className="w-full flex items-center justify-between p-3 bg-slate-50 rounded-lg border hover:bg-slate-100 text-left transition-colors">
+                        <div className="flex items-center gap-3">
+                            <BookOpenIcon className="w-5 h-5 text-violet-500 flex-shrink-0" />
+                            <span className="font-medium text-slate-800">{material.title}</span>
+                        </div>
+                        <span className="text-xs font-semibold bg-slate-200 text-slate-700 px-2 py-1 rounded-full">
+                            {material.type}
+                        </span>
+                    </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-center text-slate-500 py-8">No materials are assigned to this schedule.</p>
+          )}
+      </Modal>
+
+      {/* Modal for viewing a video */}
+      <Modal isOpen={isVideoViewerOpen} onClose={() => setIsVideoViewerOpen(false)} title={materialForVideoViewer?.title || 'Video Viewer'} size="xl">
+        <MaterialViewer material={materialForVideoViewer} />
       </Modal>
     </div>
   );

@@ -10,7 +10,7 @@ import { BookOpenIcon, EyeIcon, XIcon, PencilIcon, UploadIcon } from '../icons/I
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
 
 const MaterialManager = () => {
-  const { materials, addMaterial, updateMaterial, deleteMaterial } = useData();
+  const { materials, courses, addMaterial, updateMaterial, deleteMaterial } = useData();
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
@@ -138,7 +138,7 @@ const MaterialManager = () => {
                   {materials.map((material) => (
                     <tr key={material.id} className="hover:bg-slate-50 transition-colors">
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{material.title}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{material.course}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{courses.find(c => c.id === material.course)?.name || 'N/A'}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                         <span className="text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-1 rounded-full">{material.type}</span>
                       </td>
@@ -172,7 +172,12 @@ const MaterialManager = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
                     <label htmlFor="course" className={formLabelClasses}>Course</label>
-                    <input type="text" name="course" id="course" value={newMaterial.course} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm" placeholder="e.g., Web Development" />
+                    <select name="course" id="course" value={newMaterial.course} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm">
+                        <option value="" disabled>Select a course</option>
+                        {courses.map(course => (
+                            <option key={course.id} value={course.id}>{course.name}</option>
+                        ))}
+                    </select>
                 </div>
                 <div>
                     <label htmlFor="type" className={formLabelClasses}>Type</label>

@@ -1,3 +1,5 @@
+// frontend/components/trainer/TrainerHome.jsx
+
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
@@ -7,7 +9,7 @@ const TrainerHome = ({ setView }) => {
   const { user } = useAuth();
   const { schedules } = useData();
 
-  const mySchedules = schedules.filter(s => s.trainerId === user?.id);
+  const mySchedules = schedules.filter(s => s.trainer == user?.user_id);
   const upcomingSchedules = mySchedules.filter(s => s.endDate > new Date());
   
   const nextClass = upcomingSchedules.length > 0 
@@ -38,8 +40,8 @@ const TrainerHome = ({ setView }) => {
         {nextClass ? (
           <div className="p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
             <h2 className="font-semibold text-slate-500">Next Upcoming Class</h2>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{nextClass.course}</p>
-            <p className="text-md text-slate-600">at {nextClass.college}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{nextClass.course_name}</p>
+            <p className="text-md text-slate-600">at {nextClass.college_name}</p>
             <p className="text-sm text-slate-500 mt-2">
               {nextClass.startDate.toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}
             </p>

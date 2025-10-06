@@ -6,7 +6,7 @@ import Modal from '../shared/Modal';
 import { PencilIcon, XIcon } from '../icons/Icons';
 
 const ScheduleManager = () => {
-  const { schedules, trainers, materials, colleges, addSchedule, updateSchedule, deleteSchedule, globalSearchTerm } = useData();
+  const { schedules, trainers, materials, colleges, batches, addSchedule, updateSchedule, deleteSchedule, globalSearchTerm } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSchedule, setEditingSchedule] = useState(null);
   const [showAllSchedules, setShowAllSchedules] = useState(false);
@@ -18,8 +18,8 @@ const ScheduleManager = () => {
     endDate.setHours(startDate.getHours() + 1);
     return {
       trainerId: '',
-      college: '',
-      course: '',
+      collegeId: '',
+      batchId: '',
       startDate,
       endDate,
       materialIds: [],
@@ -33,7 +33,18 @@ const ScheduleManager = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setNewSchedule(prev => ({ ...prev, [name]: value }));
+    const newState = { ...newSchedule, [name]: value };
+
+    // Reset dependent fields if the parent changes
+    if (name === 'collegeId') {
+        newState.batchId = '';
+        newState.materialIds = [];
+    }
+    if (name === 'batchId') {
+        newState.materialIds = [];
+    }
+
+    setNewSchedule(newState);
   };
   
   const handleDateTimeChange = (e) => {
@@ -52,14 +63,15 @@ const ScheduleManager = () => {
 
   const handleOpenModal = (schedule = null) => {
     if (schedule) {
+      const batch = batches.find(b => b.id === schedule.batch);
       setEditingSchedule(schedule);
       setNewSchedule({
         trainerId: schedule.trainer,
-        college: schedule.college,
-        course: schedule.course,
+        collegeId: batch ? batch.college : '',
+        batchId: schedule.batch,
         startDate: new Date(schedule.start_date),
         endDate: new Date(schedule.end_date),
-        materialIds: schedule.materials,
+        materialIds: schedule.materials.map(m => m.id),
       });
     } else {
       setEditingSchedule(null);
@@ -75,15 +87,24 @@ const ScheduleManager = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!newSchedule.trainerId || !newSchedule.college || !newSchedule.course) {
-        alert("Please select a trainer, college, and course.");
+    if (!newSchedule.trainerId || !newSchedule.batchId) {
+        alert("Please select a trainer and a batch.");
         return;
     }
 
+    // The payload now sends batch, not college and course
+    const payload = {
+        trainer: newSchedule.trainerId,
+        batch: newSchedule.batchId,
+        start_date: newSchedule.startDate.toISOString(),
+        end_date: newSchedule.endDate.toISOString(),
+        material_ids: newSchedule.materialIds,
+    };
+
     if (editingSchedule) {
-      updateSchedule(editingSchedule.id, newSchedule);
+      updateSchedule(editingSchedule.id, payload);
     } else {
-      addSchedule(newSchedule);
+      addSchedule(payload);
     }
     handleCloseModal();
   };
@@ -94,9 +115,6 @@ const ScheduleManager = () => {
     }
   };
 
-  const getTrainerName = (trainerId) => trainers.find(t => t.id === trainerId)?.full_name || 'Unknown Trainer';
-  const getCollegeName = (collegeId) => colleges.find(c => c.id === collegeId)?.name || 'Unknown College';
-
   const filteredSchedules = useMemo(() => {
     let schedulesToFilter = showAllSchedules ? schedules : schedules.filter(s => new Date(s.end_date) >= new Date());
 
@@ -104,13 +122,23 @@ const ScheduleManager = () => {
 
     const lowercasedFilter = globalSearchTerm.toLowerCase();
     return schedulesToFilter.filter(schedule =>
-      schedule.course.toLowerCase().includes(lowercasedFilter) ||
-      getCollegeName(schedule.college).toLowerCase().includes(lowercasedFilter) ||
-      getTrainerName(schedule.trainer).toLowerCase().includes(lowercasedFilter)
+      schedule.course_name.toLowerCase().includes(lowercasedFilter) ||
+      schedule.college_name.toLowerCase().includes(lowercasedFilter) ||
+      schedule.trainer_name.toLowerCase().includes(lowercasedFilter)
     );
-  }, [schedules, globalSearchTerm, trainers, colleges, showAllSchedules]);
+  }, [schedules, globalSearchTerm, showAllSchedules]);
 
-  const availableCourses = useMemo(() => [...new Set(materials.map(m => m.course))], [materials]);
+  const availableBatches = useMemo(() => {
+    if (!newSchedule.collegeId) return [];
+    return batches.filter(b => b.college == newSchedule.collegeId);
+  }, [batches, newSchedule.collegeId]);
+
+  const availableMaterials = useMemo(() => {
+    if (!newSchedule.batchId) return [];
+    const batch = batches.find(b => b.id == newSchedule.batchId);
+    if (!batch) return [];
+    return materials.filter(m => m.course === batch.course);
+  }, [materials, batches, newSchedule.batchId]);
   
   const toDateTimeLocal = (date) => {
     const d = new Date(date);
@@ -156,6 +184,7 @@ const ScheduleManager = () => {
                   <thead className="bg-slate-50">
                       <tr>
                           <th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Course</th>
+                          <th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Batch</th>
                           <th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Trainer</th>
                           <th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">College</th>
                           <th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Schedule Dates</th>
@@ -166,9 +195,10 @@ const ScheduleManager = () => {
                   <tbody className="divide-y divide-slate-200 bg-white">
                       {filteredSchedules.map(schedule => (
                           <tr key={schedule.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{schedule.course}</td>
-                              <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{getTrainerName(schedule.trainer)}</td>
-                              <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{getCollegeName(schedule.college)}</td>
+                              <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{schedule.course_name}</td>
+                              <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{schedule.batch_name}</td>
+                              <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{schedule.trainer_name}</td>
+                              <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{schedule.college_name}</td>
                               <td className="px-3 py-4 text-sm text-slate-500">
                                   <div><span className="font-semibold">Start:</span> {new Date(schedule.start_date).toLocaleString()}</div>
                                   <div><span className="font-semibold">End:</span> {new Date(schedule.end_date).toLocaleString()}</div>
@@ -201,18 +231,18 @@ const ScheduleManager = () => {
                     </select>
                 </div>
                 <div>
-                    <label htmlFor="college" className={formLabelClasses}>College</label>
-                    <select name="college" id="college" value={newSchedule.college} onChange={handleInputChange} required className={formInputClasses}>
+                    <label htmlFor="collegeId" className={formLabelClasses}>College</label>
+                    <select name="collegeId" id="collegeId" value={newSchedule.collegeId} onChange={handleInputChange} required className={formInputClasses}>
                       <option value="" disabled>Select a college</option>
                       {colleges.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label htmlFor="course" className={formLabelClasses}>Course</label>
-                    <input type="text" name="course" id="course" value={newSchedule.course} onChange={handleInputChange} required className={formInputClasses} list="courses-list" placeholder="Select or add a new course"/>
-                    <datalist id="courses-list">
-                      {availableCourses.map(c => <option key={c} value={c} />)}
-                    </datalist>
+                    <label htmlFor="batchId" className={formLabelClasses}>Batch</label>
+                    <select name="batchId" id="batchId" value={newSchedule.batchId} onChange={handleInputChange} required className={formInputClasses} disabled={!newSchedule.collegeId}>
+                        <option value="" disabled>Select a batch</option>
+                        {availableBatches.map(b => <option key={b.id} value={b.id}>{b.name} ({b.course_name})</option>)}
+                    </select>
                 </div>
                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -227,7 +257,7 @@ const ScheduleManager = () => {
                 <div>
                   <label className={formLabelClasses}>Materials</label>
                   <div className="mt-1 max-h-40 overflow-y-auto p-2 border border-slate-300 rounded-md space-y-2">
-                    {materials.filter(m => m.course === newSchedule.course).map(material => (
+                    {availableMaterials.map(material => (
                         <label key={material.id} className="flex items-center p-2 rounded-md hover:bg-slate-100 cursor-pointer">
                             <input
                                 type="checkbox"

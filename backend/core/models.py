@@ -3,6 +3,7 @@
 from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.conf import settings
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -14,9 +15,7 @@ class User(AbstractUser):
     expertise = models.CharField(max_length=100, blank=True, null=True)
     experience = models.IntegerField(blank=True, null=True)
     phone = models.CharField(max_length=20, blank=True, null=True)
-    course = models.CharField(max_length=100, blank=True, null=True)
-    college = models.CharField(max_length=100, blank=True, null=True)
-    batch = models.ForeignKey('Batch', on_delete=models.SET_NULL, null=True, blank=True, related_name='students')
+    batches = models.ManyToManyField('Batch', blank=True, related_name='students')
     access_expiry_date = models.DateTimeField(null=True, blank=True)
     assigned_materials = models.ManyToManyField('Material', blank=True, related_name='assigned_users')
     resume = models.FileField(upload_to='resumes/', null=True, blank=True)
@@ -24,9 +23,6 @@ class User(AbstractUser):
 
     @property
     def get_full_name(self):
-        """
-        Returns the first_name plus the last_name, with a space in between.
-        """
         full_name = '%s %s' % (self.first_name, self.last_name)
         return full_name.strip()
 
@@ -36,27 +32,31 @@ class College(models.Model):
     contact_person = models.CharField(max_length=100, blank=True)
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=20, blank=True)
+    courses = models.ManyToManyField('Course', blank=True, related_name='colleges')
     def __str__(self):
         return self.name
 
 class Material(models.Model):
     MATERIAL_TYPE_CHOICES = (('PDF', 'PDF'), ('PPT', 'PPT'), ('DOC', 'DOC'), ('VIDEO', 'VIDEO'))
     title = models.CharField(max_length=100)
-    course = models.CharField(max_length=100)
+    course = models.ForeignKey('Course', on_delete=models.CASCADE, related_name='materials', null=True)
     type = models.CharField(max_length=10, choices=MATERIAL_TYPE_CHOICES)
     content = models.FileField(upload_to='materials/')
+    uploader = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_materials')
     def __str__(self):
         return self.title
 
 class Schedule(models.Model):
     trainer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='schedules')
-    college = models.ForeignKey(College, on_delete=models.CASCADE)
-    course = models.CharField(max_length=100)
+    batch = models.ForeignKey('Batch', on_delete=models.CASCADE, related_name='schedules', null=True)
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
     materials = models.ManyToManyField(Material, blank=True)
+
     def __str__(self):
-        return f"{self.course} at {self.college.name}"
+        if self.batch:
+            return f"{self.batch.course.name} at {self.batch.college.name}"
+        return f"Unassigned Schedule for {self.trainer.get_full_name}"
     
 class TrainerApplication(models.Model):
     name = models.CharField(max_length=100)
@@ -65,7 +65,7 @@ class TrainerApplication(models.Model):
     experience = models.PositiveIntegerField()
     tech_stack = models.CharField(max_length=255)
     expertise_domains = models.TextField()
-    resume = models.FileField(upload_to='resumes/') # This will store the resume file
+    resume = models.FileField(upload_to='resumes/')
     status = models.CharField(max_length=20, default='PENDING')
     submitted_at = models.DateTimeField(auto_now_add=True)
 
@@ -84,7 +84,6 @@ class Bill(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:
-            # Generate a unique invoice number, e.g., INV-2025-001
             today = timezone.now().date()
             today_string = today.strftime('%Y%m%d')
             next_bill_number = Bill.objects.filter(date__year=today.year).count() + 1
@@ -112,8 +111,6 @@ class Assessment(models.Model):
     course = models.CharField(max_length=100)
     type = models.CharField(max_length=20, choices=ASSESSMENT_TYPE_CHOICES)
     material = models.ForeignKey(Material, on_delete=models.SET_NULL, null=True, blank=True, related_name='assessments')
-    # For simplicity, questions will be a list of objects like:
-    # [{"question": "...", "options": ["A", "B"], "answer": "A"}, ...]
     questions = models.JSONField(default=list) 
     
     def __str__(self):
@@ -128,31 +125,22 @@ class StudentAttempt(models.Model):
     def __str__(self):
         return f"{self.student.username} - {self.assessment.title} - {self.score}%"
     
-# backend/core/models.py
-
 class Course(models.Model):
-    # --- UPDATE THIS LINE ---
-    college = models.ForeignKey(College, on_delete=models.CASCADE, related_name='courses', null=True, blank=True)
-    
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
 
-    class Meta:
-        unique_together = ('college', 'name')
-
     def __str__(self):
-        # Handle cases where a college might not be assigned
-        college_name = self.college.name if self.college else "General"
-        return f"{college_name} - {self.name}"
+        return self.name
 
 class Batch(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='batches')
+    college = models.ForeignKey(College, on_delete=models.CASCADE, related_name='batches', null=True)
     name = models.CharField(max_length=100)
     start_date = models.DateField()
     end_date = models.DateField()
     
     class Meta:
-        unique_together = ('course', 'name')
+        unique_together = ('course', 'name', 'college')
 
     def __str__(self):
         return f"{self.course.name} - {self.name}"

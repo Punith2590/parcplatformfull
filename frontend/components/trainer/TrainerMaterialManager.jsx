@@ -1,134 +1,226 @@
-import React, { useState } from 'react';
+// frontend/components/trainer/TrainerMaterialManager.jsx
+
+import React, { useState, useMemo, useRef } from 'react';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { MaterialType } from '../../types';
 import Modal from '../shared/Modal';
-import { BookOpenIcon, EyeIcon } from '../icons/Icons';
+import MaterialViewer from '../shared/MaterialViewer';
+import { BookOpenIcon, EyeIcon, PencilIcon, XIcon, UploadIcon } from '../icons/Icons';
+
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
+
+const MaterialCard = ({ material, onUpdate, onDelete, onView, canEdit }) => (
+    <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between transition-shadow hover:shadow-md">
+        <div>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-violet-100">
+                        <BookOpenIcon className="w-5 h-5 text-violet-600" />
+                    </div>
+                    <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-600">{material.type}</span>
+                </div>
+                {canEdit && (
+                    <div className="flex gap-1">
+                        <button onClick={() => onUpdate(material)} className="p-1.5 bg-blue-100 text-blue-600 rounded-full hover:bg-blue-200">
+                            <PencilIcon className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => onDelete(material.id)} className="p-1.5 bg-red-100 text-red-600 rounded-full hover:bg-red-200">
+                            <XIcon className="w-4 h-4" />
+                        </button>
+                    </div>
+                )}
+            </div>
+            <h3 className="mt-4 text-lg font-bold text-slate-900">{material.title}</h3>
+            <p className="text-sm text-slate-500">{material.course_name}</p>
+        </div>
+        <div className="mt-4">
+            <button onClick={() => onView(material)} className="w-full px-3 py-2 text-sm font-medium text-center text-white bg-violet-600 rounded-lg hover:bg-violet-700">
+                View Material
+            </button>
+        </div>
+    </div>
+);
+
 
 const TrainerMaterialManager = () => {
-  const { materials, addMaterial } = useData();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [materialToView, setMaterialToView] = useState(null);
+    const { materials, courses, addMaterial, updateMaterial, deleteMaterial } = useData();
+    const { user } = useAuth();
+    
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingMaterial, setEditingMaterial] = useState(null);
+    const [isViewerOpen, setIsViewerOpen] = useState(false);
+    const [selectedMaterial, setSelectedMaterial] = useState(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const fileInputRef = useRef(null);
 
-  const [newMaterial, setNewMaterial] = useState({
-    title: '',
-    course: '',
-    type: MaterialType.DOC,
-    content: '',
-  });
-  
-  const formInputClasses = "mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white";
-  const formLabelClasses = "block text-sm font-medium text-slate-700 dark:text-slate-200";
+    const getInitialMaterialState = () => ({ title: '', course: '', type: MaterialType.DOC, content: null });
+    const [newMaterial, setNewMaterial] = useState(getInitialMaterialState());
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewMaterial(prev => ({ ...prev, [name]: value }));
-  };
+    const { myUploads, publicMaterials } = useMemo(() => {
+        if (!user) return { myUploads: [], publicMaterials: [] };
+        // Use loose equality (==) to handle potential type mismatches (e.g., "1" == 1)
+        const myUploads = materials.filter(m => m.uploader == user.user_id);
+        const publicMaterials = materials.filter(m => m.uploader === null);
+        return { myUploads, publicMaterials };
+    }, [materials, user]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    addMaterial(newMaterial);
-    setNewMaterial({ title: '', course: '', type: MaterialType.DOC, content: '' });
-    setIsModalOpen(false);
-  };
-  
-  const handleViewMaterial = (material) => {
-    setMaterialToView(material);
-    setIsViewModalOpen(true);
-  };
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewMaterial(prev => ({ ...prev, [name]: value }));
+    };
 
-  const renderMaterialContent = (material) => {
-    switch (material.type) {
-        case MaterialType.VIDEO:
-            return (
-                <div className="aspect-video bg-black rounded-lg overflow-hidden">
-                    <video controls src={material.content} className="w-full h-full">
-                        Your browser does not support the video tag.
-                    </video>
-                </div>
-            );
-        case MaterialType.PDF:
-        case MaterialType.DOC:
-        case MaterialType.PPT:
-             return (
-                 <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-lg border dark:border-slate-700 max-h-96 overflow-y-auto">
-                    <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{material.content}</p>
-                 </div>
-             )
-        default:
-            return <p>Unsupported material type.</p>;
-    }
-  };
+    const handleFileChange = (file) => {
+        if (file) setNewMaterial(prev => ({ ...prev, content: file }));
+    };
+
+    const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+    const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        handleFileChange(e.dataTransfer.files && e.dataTransfer.files[0]);
+    };
+
+    const handleOpenModal = (material = null) => {
+        if (material) {
+            setEditingMaterial(material);
+            setNewMaterial({ title: material.title, course: material.course, type: material.type, content: null });
+        } else {
+            setEditingMaterial(null);
+            setNewMaterial(getInitialMaterialState());
+        }
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingMaterial(null);
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const formData = new FormData();
+        formData.append('title', newMaterial.title);
+        formData.append('course', newMaterial.course);
+        formData.append('type', newMaterial.type);
+        
+        if (newMaterial.content) {
+            formData.append('content', newMaterial.content);
+        } else if (!editingMaterial) {
+            alert("Please select a file to upload.");
+            return;
+        }
+
+        if (editingMaterial) {
+            updateMaterial(editingMaterial.id, formData);
+        } else {
+            addMaterial(formData);
+        }
+        handleCloseModal();
+    };
+
+    const handleDelete = (materialId) => {
+        if (window.confirm('Are you sure you want to delete this material?')) {
+            deleteMaterial(materialId);
+        }
+    };
+
+    const handleViewMaterial = (material) => {
+        const fileUrl = `${BACKEND_URL}${material.content}`;
+        if (material.type === MaterialType.VIDEO) {
+            setSelectedMaterial({ ...material, content: fileUrl });
+            setIsViewerOpen(true);
+        } else {
+            window.open(fileUrl, '_blank');
+        }
+    };
+
+    const formLabelClasses = "block text-sm font-medium text-slate-700";
 
   return (
     <div>
       <div className="flex justify-between items-center">
         <div>
             <h1 className="text-3xl font-bold text-pygenic-blue">My Materials</h1>
-            <p className="mt-2 text-slate-600">Upload and manage your training content.</p>
+            <p className="mt-2 text-slate-600">Upload your own content or browse public course materials.</p>
         </div>
-        <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">
+        <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">
           Add Material
         </button>
       </div>
 
-      <div className="mt-8 grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-        {materials.map(material => (
-            <div key={material.id} className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex flex-col justify-between transition-shadow hover:shadow-lg">
-                <div className="flex flex-col flex-grow">
-                    <div>
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-violet-100">
-                                <BookOpenIcon className="w-5 h-5 text-violet-600" />
-                            </div>
-                            <span className="text-xs font-semibold px-2 py-1 rounded-full bg-slate-100 text-slate-600">{material.type}</span>
-                        </div>
-                        <h3 className="mt-4 text-lg font-bold text-pygenic-blue">{material.title}</h3>
-                        <p className="text-sm text-slate-500">{material.course}</p>
-                        <p className="mt-2 text-sm text-slate-600 line-clamp-2">{material.content}</p>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-slate-200 flex items-center gap-2">
-                        <button onClick={() => handleViewMaterial(material)} className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-center text-violet-700 bg-violet-100 rounded-lg hover:bg-violet-200">
-                            <EyeIcon className="w-4 h-4" />
-                            View
-                        </button>
-                    </div>
-                </div>
-            </div>
-        ))}
+      <div className="mt-8 space-y-8">
+        <div>
+            <h2 className="text-2xl font-semibold text-slate-900 mb-4">My Uploads</h2>
+            {myUploads.length > 0 ? (
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {myUploads.map(material => (
+                    <MaterialCard key={material.id} material={material} onUpdate={handleOpenModal} onDelete={handleDelete} onView={handleViewMaterial} canEdit={true} />
+                ))}
+              </div>
+            ) : <p className="text-slate-500">You haven't uploaded any materials yet.</p>}
+        </div>
+        <div>
+            <h2 className="text-2xl font-semibold text-slate-900 mb-4">Public Materials</h2>
+            {publicMaterials.length > 0 ? (
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {publicMaterials.map(material => (
+                    <MaterialCard key={material.id} material={material} onView={handleViewMaterial} canEdit={false} />
+                ))}
+              </div>
+            ) : <p className="text-slate-500">No public materials are available.</p>}
+        </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add New Material">
-        <form onSubmit={handleSubmit}>
-          <div className="space-y-4">
+      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingMaterial ? 'Edit Material' : 'Add New Material'}>
+        <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="title" className={formLabelClasses}>Title</label>
-              <input type="text" name="title" id="title" value={newMaterial.title} onChange={handleInputChange} required className={formInputClasses} />
+              <input type="text" name="title" id="title" value={newMaterial.title} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm" />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                    <label htmlFor="course" className={formLabelClasses}>Course</label>
+                    <select name="course" id="course" value={newMaterial.course} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm">
+                        <option value="" disabled>Select a course</option>
+                        {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="type" className={formLabelClasses}>Type</label>
+                    <select name="type" id="type" value={newMaterial.type} onChange={handleInputChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm">
+                        {Object.values(MaterialType).map(type => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                </div>
             </div>
             <div>
-              <label htmlFor="course" className={formLabelClasses}>Course</label>
-              <input type="text" name="course" id="course" value={newMaterial.course} onChange={handleInputChange} required className={formInputClasses} />
+              <label className={formLabelClasses}>{editingMaterial ? 'Upload New File (Optional)' : 'Upload File'}</label>
+              <div 
+                className={`mt-1 flex justify-center items-center w-full h-32 px-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-violet-500 bg-violet-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
+                onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()} >
+                  <input ref={fileInputRef} type="file" name="content" id="content" onChange={(e) => handleFileChange(e.target.files[0])} required={!editingMaterial} className="hidden"/>
+                  <div className="text-center">
+                    {newMaterial.content ? (<p className="text-sm text-slate-700 font-semibold">{newMaterial.content.name}</p>) : (
+                        <>
+                            <UploadIcon className="mx-auto h-8 w-8 text-slate-400" />
+                            <p className="mt-2 text-sm text-slate-600"><span className="font-semibold text-violet-600">Click to upload</span> or drag and drop</p>
+                        </>
+                    )}
+                  </div>
+              </div>
             </div>
-            <div>
-              <label htmlFor="type" className={formLabelClasses}>Type</label>
-              <select name="type" id="type" value={newMaterial.type} onChange={handleInputChange} className={formInputClasses}>
-                {Object.values(MaterialType).map(type => <option key={type} value={type}>{type}</option>)}
-              </select>
+            <div className="pt-4 flex justify-end gap-4">
+                <button type="button" onClick={handleCloseModal} className="px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm hover:bg-slate-50">Cancel</button>
+                <button type="submit" className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 rounded-lg shadow-md hover:from-violet-700 hover:to-indigo-700">
+                    {editingMaterial ? 'Save Changes' : 'Add Material'}
+                </button>
             </div>
-            <div>
-              <label htmlFor="content" className={formLabelClasses}>Content / URL</label>
-              <textarea name="content" id="content" rows={4} value={newMaterial.content} onChange={handleInputChange} required className={formInputClasses} />
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end gap-4">
-            <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600">Cancel</button>
-            <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-violet-600 border border-transparent rounded-md shadow-sm hover:bg-violet-700">Add Material</button>
-          </div>
         </form>
       </Modal>
 
-      <Modal isOpen={isViewModalOpen} onClose={() => setIsViewModalOpen(false)} title={materialToView?.title || 'View Material'} size="lg">
-        {materialToView && renderMaterialContent(materialToView)}
+      <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={selectedMaterial?.title || 'Material Viewer'} size="xl">
+          <MaterialViewer material={selectedMaterial} />
       </Modal>
     </div>
   );

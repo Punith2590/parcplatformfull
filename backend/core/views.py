@@ -3,13 +3,14 @@
 from django.http import FileResponse
 from django.core.mail import send_mail
 from django.utils import timezone
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from rest_framework import viewsets, status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.exceptions import PermissionDenied
 from .models import (
     User, College, Material, Schedule, TrainerApplication, Bill,
     Assessment, StudentAttempt, Course, Batch
@@ -22,7 +23,7 @@ from .serializers import (
 import secrets
 from rest_framework_simplejwt.views import TokenObtainPairView
 import pandas as pd
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
@@ -45,7 +46,7 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
                 'expertise': application.expertise_domains,
                 'experience': application.experience,
                 'role': 'TRAINER',
-                'is_active': False,  # User is created but cannot log in yet
+                'is_active': False,
                 'resume': application.resume
             }
         )
@@ -56,7 +57,6 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
         application.status = 'APPROVED'
         application.save()
 
-        # Send approval email (no credentials)
         send_mail(
             'Your Application has been Approved!',
             f'Hi {user.first_name},\n\nCongratulations! Your application to become a trainer at Parc Platform has been approved. '
@@ -73,7 +73,6 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
     def decline(self, request, pk=None):
         application = self.get_object()
         
-        # Send rejection email
         send_mail(
             'Update on Your Parc Platform Application',
             f'Hi {application.name},\n\nThank you for your interest in becoming a trainer. '
@@ -85,7 +84,6 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
             fail_silently=False,
         )
         
-        # Delete the application from the database
         application.delete()
         
         return Response({'status': 'application declined and deleted'}, status=status.HTTP_200_OK)
@@ -107,72 +105,44 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def bulk_create_students(self, request, *args, **kwargs):
         file_obj = request.FILES.get('file')
-        college_name = request.data.get('college')
+        batch_id = request.data.get('batch')
 
-        if not file_obj:
-            return Response({'error': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
-        if not college_name:
-            return Response({'error': 'College name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if not file_obj or not batch_id:
+            return Response({'error': 'Batch ID and file are required.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Check file extension to use the correct pandas reader
-            if file_obj.name.endswith('.csv'):
-                df = pd.read_csv(file_obj)
-            elif file_obj.name.endswith(('.xls', '.xlsx')):
-                df = pd.read_excel(file_obj)
-            else:
-                return Response({'error': 'Unsupported file format. Please upload a CSV or Excel file.'}, status=status.HTTP_400_BAD_REQUEST)
+            batch = Batch.objects.get(id=int(batch_id))
+        except Batch.DoesNotExist:
+            return Response({'error': f'Batch with ID {batch_id} not found.'}, status=status.HTTP_400_BAD_REQUEST)
 
-            students_to_create = []
-            errors = []
-
+        try:
+            df = pd.read_excel(file_obj) if file_obj.name.endswith(('.xls', '.xlsx')) else pd.read_csv(file_obj)
+            
+            users_to_add = []
             for index, row in df.iterrows():
                 name = row.get('name')
                 email = row.get('email')
-                course = row.get('course')
+                if not all([name, email]): continue
 
-                # Validate data in the current row
-                if not all([name, email, course]):
-                    errors.append(f"Row {index + 2}: Missing one or more required fields (name, email, course).")
-                    continue
-                
-                if User.objects.filter(username=email).exists():
-                    errors.append(f"Row {index + 2}: A user with the email '{email}' already exists.")
-                    continue
-
-                name_parts = str(name).split(" ", 1)
-                first_name = name_parts[0]
-                last_name = name_parts[1] if len(name_parts) > 1 else ""
-
-                students_to_create.append(
-                    User(
-                        username=email,
-                        email=email,
-                        first_name=first_name,
-                        last_name=last_name,
-                        role='STUDENT',
-                        college=college_name,
-                        course=str(course)
-                    )
+                user, created = User.objects.get_or_create(
+                    username=email,
+                    defaults={
+                        'email': email,
+                        'first_name': str(name).split(" ", 1)[0],
+                        'last_name': str(name).split(" ", 1)[1] if len(str(name).split(" ", 1)) > 1 else "",
+                        'role': 'STUDENT',
+                    }
                 )
-
-            if errors:
-                return Response({'errors': errors}, status=status.HTTP_400_BAD_REQUEST)
-
-            created_users = User.objects.bulk_create(students_to_create)
+                if created:
+                    user.set_password('password')
+                    user.save()
+                users_to_add.append(user)
             
-            # Set a default password for each new user
-            for user in created_users:
-                user.set_password('password')
-                user.save()
-
-            return Response(
-                {'status': f'{len(created_users)} students created successfully.'},
-                status=status.HTTP_201_CREATED
-            )
+            batch.students.add(*users_to_add)
+            return Response({'status': f'{len(users_to_add)} students processed and added to batch.'}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            return Response({'error': f'An error occurred while processing the file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['get'])
     def view_resume(self, request, pk=None):
@@ -200,11 +170,54 @@ class CollegeViewSet(viewsets.ModelViewSet):
     queryset = College.objects.all()
     serializer_class = CollegeSerializer
 
+    @action(detail=True, methods=['post'])
+    def manage_courses(self, request, pk=None):
+        college = self.get_object()
+        course_ids = request.data.get('course_ids', [])
+        
+        courses_to_set = Course.objects.filter(id__in=course_ids)
+        college.courses.set(courses_to_set)
+        
+        return Response(self.get_serializer(college).data, status=status.HTTP_200_OK)
+
 class MaterialViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    queryset = Material.objects.all()
     serializer_class = MaterialSerializer
     parser_classes = (MultiPartParser, FormParser)
+
+    def get_queryset(self):
+        """
+        Admins see all materials.
+        Trainers/Students see public materials (uploader is null) plus their own.
+        """
+        user = self.request.user
+        if user.is_staff or user.role == 'ADMIN':
+            return Material.objects.all()
+        
+        return Material.objects.filter(Q(uploader__isnull=True) | Q(uploader=user))
+
+    def perform_create(self, serializer):
+        """ If user is a trainer, set them as the uploader. """
+        if self.request.user.role == 'TRAINER':
+            serializer.save(uploader=self.request.user)
+        else:
+            # Admins (or other roles) create public materials
+            serializer.save(uploader=None)
+
+    def perform_update(self, serializer):
+        material = self.get_object()
+        user = self.request.user
+        if material.uploader == user or user.is_staff or user.role == 'ADMIN':
+            serializer.save()
+        else:
+            raise PermissionDenied("You do not have permission to edit this material.")
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if instance.uploader == user or user.is_staff or user.role == 'ADMIN':
+            instance.delete()
+        else:
+            raise PermissionDenied("You do not have permission to delete this material.")
 
 class CourseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -220,65 +233,50 @@ class BatchViewSet(viewsets.ModelViewSet):
     def create_with_students(self, request, *args, **kwargs):
         file_obj = request.FILES.get('file')
         course_id = request.data.get('course')
+        college_id = request.data.get('college')
         batch_name = request.data.get('name')
         start_date = request.data.get('start_date')
         end_date = request.data.get('end_date')
 
-        if not all([file_obj, course_id, batch_name, start_date, end_date]):
-            return Response({'error': 'Missing required fields (file, course, name, start_date, end_date).'}, status=status.HTTP_400_BAD_REQUEST)
-
+        if not all([file_obj, course_id, college_id, batch_name, start_date, end_date]):
+            return Response({'error': 'Missing required fields.'}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
             course = Course.objects.get(id=int(course_id))
-        except Course.DoesNotExist:
-            return Response({'error': f'Course with ID {course_id} not found.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # 1. Create the Batch manually
-        try:
+            college = College.objects.get(id=int(college_id))
             batch = Batch.objects.create(
-                course=course,
-                name=batch_name,
-                start_date=start_date,
-                end_date=end_date
+                course=course, college=college, name=batch_name,
+                start_date=start_date, end_date=end_date
             )
-        except IntegrityError:
-            return Response({'error': 'A batch with this name already exists for this course.'}, status=status.HTTP_400_BAD_REQUEST)
-
-
-        # 2. Process the student file
+        except (Course.DoesNotExist, College.DoesNotExist, IntegrityError) as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
             df = pd.read_excel(file_obj) if file_obj.name.endswith(('.xls', '.xlsx')) else pd.read_csv(file_obj)
-            students_to_create = []
-            
-            for index, row in df.iterrows():
-                name = row.get('name')
-                email = row.get('email')
-                
-                if not all([name, email]): continue # Skip rows with missing data
-                if User.objects.filter(username=email).exists(): continue # Skip existing users
-
-                name_parts = str(name).split(" ", 1)
-                students_to_create.append(
-                    User(
-                        username=email, email=email,
-                        first_name=name_parts[0],
-                        last_name=name_parts[1] if len(name_parts) > 1 else "",
-                        role='STUDENT',
-                        course=batch.course.name,
-                        college=batch.course.college.name,
-                        batch=batch
-                    )
+            users_to_add = []
+            for _, row in df.iterrows():
+                name, email = row.get('name'), row.get('email')
+                if not all([name, email]): continue
+                user, created = User.objects.get_or_create(
+                    username=email,
+                    defaults={
+                        'email': email,
+                        'first_name': str(name).split(" ", 1)[0],
+                        'last_name': str(name).split(" ", 1)[1] if len(str(name).split(" ", 1)) > 1 else "",
+                        'role': 'STUDENT'
+                    }
                 )
+                if created:
+                    user.set_password('password')
+                    user.save()
+                users_to_add.append(user)
 
-            created_users = User.objects.bulk_create(students_to_create)
-            for user in created_users:
-                user.set_password('password')
-                user.save()
-
+            batch.students.add(*users_to_add)
             return Response(self.get_serializer(batch).data, status=status.HTTP_201_CREATED)
         except Exception as e:
-            batch.delete() # Rollback: delete the batch if student processing fails
-            return Response({'error': f'An error occurred while processing the student file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            batch.delete()
+            return Response({'error': f'File processing error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def add_students_from_file(self, request, pk=None):
         batch = self.get_object()
@@ -289,14 +287,11 @@ class BatchViewSet(viewsets.ModelViewSet):
 
         try:
             df = pd.read_excel(file_obj) if file_obj.name.endswith(('.xls', '.xlsx')) else pd.read_csv(file_obj)
-            
-            for index, row in df.iterrows():
-                name = row.get('name')
-                email = row.get('email')
-                
+            users_to_add = []
+            for _, row in df.iterrows():
+                name, email = row.get('name'), row.get('email')
                 if not all([name, email]): continue
 
-                # Get existing student or create a new one
                 user, created = User.objects.get_or_create(
                     username=email,
                     defaults={
@@ -304,25 +299,17 @@ class BatchViewSet(viewsets.ModelViewSet):
                         'first_name': str(name).split(" ", 1)[0],
                         'last_name': str(name).split(" ", 1)[1] if len(str(name).split(" ", 1)) > 1 else "",
                         'role': 'STUDENT',
-                        'course': batch.course.name,
-                        'college': batch.course.college.name,
                     }
                 )
-                # Assign the user to this batch
-                user.batch = batch
-                user.save()
-
                 if created:
                     user.set_password('password')
                     user.save()
-                    print(f"--- CREATED AND ADDED USER: {user.email} ---")
-                else:
-                    print(f"--- ADDED EXISTING USER: {user.email} ---")
-
-
+                users_to_add.append(user)
+            
+            batch.students.add(*users_to_add)
             return Response(self.get_serializer(batch).data, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({'error': f'An error occurred while processing the file: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
         
     @action(detail=True, methods=['post'])
     def add_students(self, request, pk=None):
@@ -334,16 +321,38 @@ class BatchViewSet(viewsets.ModelViewSet):
         
         return Response(self.get_serializer(batch).data, status=status.HTTP_200_OK)
 
-    # --- NEW ACTION TO REMOVE STUDENTS ---
     @action(detail=True, methods=['post'])
     def remove_students(self, request, pk=None):
         batch = self.get_object()
         student_ids = request.data.get('student_ids', [])
         
-        students_to_remove = User.objects.filter(id__in=student_ids, batch=batch)
+        students_to_remove = User.objects.filter(id__in=student_ids)
         batch.students.remove(*students_to_remove)
         
         return Response(self.get_serializer(batch).data, status=status.HTTP_200_OK)
+    
+    @action(detail=True, methods=['post'])
+    def assign_materials(self, request, pk=None):
+        batch = self.get_object()
+        material_ids = request.data.get('material_ids', [])
+        
+        try:
+            materials_to_assign = Material.objects.filter(id__in=material_ids)
+            if len(materials_to_assign) != len(material_ids):
+                valid_ids = set(materials_to_assign.values_list('id', flat=True))
+                invalid_ids = [mid for mid in material_ids if mid not in valid_ids]
+                return Response({'error': f'Invalid material IDs provided: {invalid_ids}'}, status=status.HTTP_400_BAD_REQUEST)
+
+            students_in_batch = batch.students.all()
+            
+            with transaction.atomic():
+                for student in students_in_batch:
+                    student.assigned_materials.add(*materials_to_assign)
+            
+            return Response({'status': f'Materials assigned to {students_in_batch.count()} students in batch {batch.name}.'}, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 
 class ScheduleViewSet(viewsets.ModelViewSet):

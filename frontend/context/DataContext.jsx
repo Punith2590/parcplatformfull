@@ -158,17 +158,19 @@ export const DataProvider = ({ children }) => {
     return () => window.removeEventListener('authTokensUpdated', handler);
   }, [user]);
 
+  const assignMaterialsToBatch = async (batchId, materialIds) => {
+    try {
+      await apiClient.post(`/batches/${batchId}/assign_materials/`, { material_ids: materialIds });
+      alert('Materials assigned successfully to all students in the batch!');
+    } catch (error) {
+      console.error("Failed to assign materials to batch:", error);
+      setError("Could not assign materials to the batch. Please try again.");
+    }
+  };
+
   const addSchedule = async (scheduleData) => {
     try {
-      const payload = {
-        trainer: scheduleData.trainerId,
-        college: scheduleData.college,
-        course: scheduleData.course,
-        start_date: scheduleData.startDate.toISOString(),
-        end_date: scheduleData.endDate.toISOString(),
-        materials: scheduleData.materialIds,
-      };
-      const response = await apiClient.post('/schedules/', payload);
+      const response = await apiClient.post('/schedules/', scheduleData);
       const newSchedule = {
         ...response.data,
         startDate: new Date(response.data.start_date),
@@ -180,18 +182,10 @@ export const DataProvider = ({ children }) => {
       setError("Could not add schedule. Please check the details and try again.");
     }
   };
-
+  
   const updateSchedule = async (scheduleId, scheduleData) => {
     try {
-      const payload = {
-        trainer: scheduleData.trainerId,
-        college: scheduleData.college,
-        course: scheduleData.course,
-        start_date: scheduleData.startDate.toISOString(),
-        end_date: scheduleData.endDate.toISOString(),
-        materials: scheduleData.materialIds,
-      };
-      const response = await apiClient.patch(`/schedules/${scheduleId}/`, payload);
+      const response = await apiClient.patch(`/schedules/${scheduleId}/`, scheduleData);
       const updatedSchedule = {
         ...response.data,
         startDate: new Date(response.data.start_date),
@@ -278,6 +272,18 @@ export const DataProvider = ({ children }) => {
     }
   };
 
+  const updateCollegeCourses = async (collegeId, course_ids) => {
+    try {
+      const response = await apiClient.post(`/colleges/${collegeId}/manage_courses/`, { course_ids });
+      setColleges(prev =>
+        prev.map(c => (c.id === collegeId ? response.data : c))
+      );
+    } catch (error) {
+      console.error("Failed to update college courses:", error);
+      setError("Could not update college courses. Please try again.");
+    }
+  };
+
   const addUser = async (userData) => {
     try {
       const name = userData.name?.trim();
@@ -361,10 +367,10 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const bulkAddStudents = async (collegeName, file) => {
+  const bulkAddStudents = async (batchId, file) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('college', collegeName);
+    formData.append('batch', batchId);
 
     try {
       const response = await apiClient.post('/users/bulk_create_students/', formData, {
@@ -417,6 +423,7 @@ export const DataProvider = ({ children }) => {
   const addBatchWithStudents = async (batchData, file) => {
     const formData = new FormData();
     formData.append('course', batchData.course);
+    formData.append('college', batchData.college);
     formData.append('name', batchData.name);
     formData.append('start_date', batchData.start_date);
     formData.append('end_date', batchData.end_date);
@@ -531,10 +538,12 @@ export const DataProvider = ({ children }) => {
     addCollege,
     updateCollege,
     deleteCollege,
+    updateCollegeCourses,
     addUser,
     updateUser,
     deleteUser,
     assignMaterialsToStudent,
+    assignMaterialsToBatch,
     addSchedule,
     updateSchedule,
     deleteSchedule,
