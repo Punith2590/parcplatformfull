@@ -5,6 +5,8 @@ from .models import Batch, StudentAttempt, User, College, Material, Schedule, Tr
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.db import IntegrityError, transaction
 from django.utils import timezone
+from .utils import send_student_credentials
+import secrets
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -13,6 +15,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['username'] = user.username
         token['role'] = user.role
         token['name'] = user.get_full_name
+        token['must_change_password'] = user.must_change_password
         
         if user.role == 'STUDENT':
             user_batches = user.batches.all().select_related('course')
@@ -53,7 +56,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'role', 'expertise', 'experience',
             'phone', 'access_expiry_date',
             'assigned_materials', 'name', 'full_name', 'resume', 
-            'assigned_assessments', 'batches'
+            'assigned_assessments', 'batches', 'must_change_password'
         )
         extra_kwargs = {
             'email': {'required': True},
@@ -63,10 +66,12 @@ class UserSerializer(serializers.ModelSerializer):
         batches_data = validated_data.pop('batches', None)
         full_name = validated_data.pop('name')
         email = validated_data.pop('email')
+        role = validated_data.get('role')
         name_parts = full_name.split(" ", 1)
         first_name = name_parts[0]
         last_name = name_parts[1] if len(name_parts) > 1 else ""
-        password = "password"
+        
+        password = secrets.token_urlsafe(8)
         
         try:
             user = User.objects.create_user(
@@ -77,10 +82,14 @@ class UserSerializer(serializers.ModelSerializer):
         except IntegrityError:
             raise serializers.ValidationError({'email': ['A user with this email already exists.']})
 
+        if role == 'STUDENT':
+            user.must_change_password = True
+            user.save()
+            send_student_credentials(user, password)
+
         if batches_data:
             user.batches.set(batches_data)
         
-        print(f"--- CREATED USER: {user.email} | TEMP PASSWORD: {password} ---")
         return user
 
 class CourseSerializer(serializers.ModelSerializer):

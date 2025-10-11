@@ -1,3 +1,5 @@
+// frontend/context/AuthContext.jsx
+
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import apiClient from '../api';
@@ -13,7 +15,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.getItem('authTokens') ? jwtDecode(JSON.parse(localStorage.getItem('authTokens')).access) : null
   );
   
-  const [loading, setLoading] = useState(true); // Start as true
+  const [loading, setLoading] = useState(true);
 
   const login = async (username, password) => {
     try {
@@ -33,6 +35,17 @@ export const AuthProvider = ({ children }) => {
     delete apiClient.defaults.headers.common['Authorization'];
     setAuthTokens(null);
     setUser(null);
+  };
+
+  const setNewPassword = async (password) => {
+    try {
+      await apiClient.post('/auth/set-password/', { password });
+      logout(); // Force logout after password change
+      return { success: true, message: 'Password updated successfully! Please log in again.' };
+    } catch (error) {
+      console.error('Password change failed:', error?.response?.data || error.message);
+      throw new Error('Failed to set new password.');
+    }
   };
 
   useEffect(() => {
@@ -66,7 +79,6 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, [authTokens]);
 
-  // Sync across tabs & detect external logout
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'authTokens') {
@@ -78,7 +90,7 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const contextData = { user, authTokens, login, logout, loading };
+  const contextData = { user, authTokens, login, logout, setNewPassword, loading };
 
   return (
     <AuthContext.Provider value={contextData}>

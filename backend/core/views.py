@@ -1,6 +1,6 @@
 # backend/core/views.py
 
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.core.mail import send_mail
 from django.utils import timezone
 from django.db.models import Sum, Q
@@ -24,9 +24,24 @@ import secrets
 from rest_framework_simplejwt.views import TokenObtainPairView
 import pandas as pd
 from django.db import IntegrityError, transaction
+from .utils import send_student_credentials
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+
+class SetPasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        password = request.data.get("password")
+        if not password or len(password) < 8:
+            return Response({"error": "Password must be at least 8 characters long."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user.set_password(password)
+        user.must_change_password = False
+        user.save()
+        return Response({"status": "Password set successfully. Please log in again."}, status=status.HTTP_200_OK)
 
 class TrainerApplicationViewSet(viewsets.ModelViewSet):
     queryset = TrainerApplication.objects.filter(status='PENDING')
@@ -72,7 +87,6 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def decline(self, request, pk=None):
         application = self.get_object()
-        
         send_mail(
             'Update on Your Parc Platform Application',
             f'Hi {application.name},\n\nThank you for your interest in becoming a trainer. '
@@ -83,72 +97,37 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
             [application.email],
             fail_silently=False,
         )
-        
         application.delete()
-        
         return Response({'status': 'application declined and deleted'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['get'])
     def view_resume(self, request, pk=None):
         application = self.get_object()
         if hasattr(application, 'resume') and application.resume:
-            return FileResponse(application.resume.open(), content_type='application/pdf')
+            try:
+                with application.resume.open('rb') as f:
+                    resume_data = f.read()
+                return HttpResponse(resume_data, content_type='application/pdf')
+            except FileNotFoundError:
+                return Response({'error': 'Resume file not found on server.'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            return Response({'error': 'Resume not found.'}, status=status.HTTP_404_NOT_FOUND)
-
+            return Response({'error': 'Resume not found for this application.'}, status=status.HTTP_404_NOT_FOUND)
 
 class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
-    @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
-    def bulk_create_students(self, request, *args, **kwargs):
-        file_obj = request.FILES.get('file')
-        batch_id = request.data.get('batch')
-
-        if not file_obj or not batch_id:
-            return Response({'error': 'Batch ID and file are required.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            batch = Batch.objects.get(id=int(batch_id))
-        except Batch.DoesNotExist:
-            return Response({'error': f'Batch with ID {batch_id} not found.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            df = pd.read_excel(file_obj) if file_obj.name.endswith(('.xls', '.xlsx')) else pd.read_csv(file_obj)
-            
-            users_to_add = []
-            for index, row in df.iterrows():
-                name = row.get('name')
-                email = row.get('email')
-                if not all([name, email]): continue
-
-                user, created = User.objects.get_or_create(
-                    username=email,
-                    defaults={
-                        'email': email,
-                        'first_name': str(name).split(" ", 1)[0],
-                        'last_name': str(name).split(" ", 1)[1] if len(str(name).split(" ", 1)) > 1 else "",
-                        'role': 'STUDENT',
-                    }
-                )
-                if created:
-                    user.set_password('password')
-                    user.save()
-                users_to_add.append(user)
-            
-            batch.students.add(*users_to_add)
-            return Response({'status': f'{len(users_to_add)} students processed and added to batch.'}, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            return Response({'error': f'An error occurred: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-
     @action(detail=True, methods=['get'])
     def view_resume(self, request, pk=None):
         user = self.get_object()
         if hasattr(user, 'resume') and user.resume:
-            return FileResponse(user.resume.open(), content_type='application/pdf')
+            try:
+                with user.resume.open('rb') as f:
+                    resume_data = f.read()
+                return HttpResponse(resume_data, content_type='application/pdf')
+            except FileNotFoundError:
+                return Response({'error': 'Resume file not found on server.'}, status=status.HTTP_404_NOT_FOUND)
         else:
             return Response({'error': 'Resume not found for this user.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -174,10 +153,8 @@ class CollegeViewSet(viewsets.ModelViewSet):
     def manage_courses(self, request, pk=None):
         college = self.get_object()
         course_ids = request.data.get('course_ids', [])
-        
         courses_to_set = Course.objects.filter(id__in=course_ids)
         college.courses.set(courses_to_set)
-        
         return Response(self.get_serializer(college).data, status=status.HTTP_200_OK)
 
 class MaterialViewSet(viewsets.ModelViewSet):
@@ -186,22 +163,15 @@ class MaterialViewSet(viewsets.ModelViewSet):
     parser_classes = (MultiPartParser, FormParser)
 
     def get_queryset(self):
-        """
-        Admins see all materials.
-        Trainers/Students see public materials (uploader is null) plus their own.
-        """
         user = self.request.user
         if user.is_staff or user.role == 'ADMIN':
             return Material.objects.all()
-        
         return Material.objects.filter(Q(uploader__isnull=True) | Q(uploader=user))
 
     def perform_create(self, serializer):
-        """ If user is a trainer, set them as the uploader. """
         if self.request.user.role == 'TRAINER':
             serializer.save(uploader=self.request.user)
         else:
-            # Admins (or other roles) create public materials
             serializer.save(uploader=None)
 
     def perform_update(self, serializer):
@@ -263,12 +233,15 @@ class BatchViewSet(viewsets.ModelViewSet):
                         'email': email,
                         'first_name': str(name).split(" ", 1)[0],
                         'last_name': str(name).split(" ", 1)[1] if len(str(name).split(" ", 1)) > 1 else "",
-                        'role': 'STUDENT'
+                        'role': 'STUDENT',
+                        'must_change_password': True
                     }
                 )
                 if created:
-                    user.set_password('password')
+                    password = secrets.token_urlsafe(8)
+                    user.set_password(password)
                     user.save()
+                    send_student_credentials(user, password)
                 users_to_add.append(user)
 
             batch.students.add(*users_to_add)
@@ -276,7 +249,7 @@ class BatchViewSet(viewsets.ModelViewSet):
         except Exception as e:
             batch.delete()
             return Response({'error': f'File processing error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
-
+        
     @action(detail=True, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def add_students_from_file(self, request, pk=None):
         batch = self.get_object()
@@ -299,11 +272,14 @@ class BatchViewSet(viewsets.ModelViewSet):
                         'first_name': str(name).split(" ", 1)[0],
                         'last_name': str(name).split(" ", 1)[1] if len(str(name).split(" ", 1)) > 1 else "",
                         'role': 'STUDENT',
+                        'must_change_password': True
                     }
                 )
                 if created:
-                    user.set_password('password')
+                    password = secrets.token_urlsafe(8)
+                    user.set_password(password)
                     user.save()
+                    send_student_credentials(user, password)
                 users_to_add.append(user)
             
             batch.students.add(*users_to_add)
@@ -353,7 +329,6 @@ class BatchViewSet(viewsets.ModelViewSet):
         
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
 
 class ScheduleViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]

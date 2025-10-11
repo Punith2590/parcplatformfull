@@ -20,6 +20,7 @@ class User(AbstractUser):
     assigned_materials = models.ManyToManyField('Material', blank=True, related_name='assigned_users')
     resume = models.FileField(upload_to='resumes/', null=True, blank=True)
     assigned_assessments = models.ManyToManyField('Assessment', blank=True, related_name='assigned_students')
+    must_change_password = models.BooleanField(default=False)
 
     @property
     def get_full_name(self):

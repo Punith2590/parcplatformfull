@@ -5,14 +5,13 @@ import { useData } from '../../context/DataContext';
 import { Role } from '../../types';
 import Modal from '../shared/Modal';
 import { PencilIcon, XIcon, EyeIcon } from '../icons/Icons';
+import apiClient from '../../api';
 
 const TrainerManager = () => {
   const { trainers, addUser, updateUser, deleteUser, globalSearchTerm } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState(null);
   
-  const API_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
-
   const getInitialTrainerState = () => ({
     name: '', email: '', phone: '', expertise: '', experience: 0,
   });
@@ -54,10 +53,11 @@ const TrainerManager = () => {
 
   const handleSubmit = (e) => {
       e.preventDefault();
+      const payload = { ...newTrainer, role: Role.TRAINER };
       if (editingTrainer) {
-        updateUser(editingTrainer.id, newTrainer);
+        updateUser(editingTrainer.id, payload);
       } else {
-        addUser({ ...newTrainer, role: Role.TRAINER });
+        addUser(payload);
       }
       handleCloseModal();
   };
@@ -68,13 +68,22 @@ const TrainerManager = () => {
     }
   };
 
-  const handleViewResume = (trainer) => {
+  const handleViewResume = async (trainer) => {
     if (!trainer.resume) {
       alert("No resume found for this trainer.");
       return;
     }
-    const resumeUrl = `${API_URL}${trainer.resume}`;
-    window.open(resumeUrl, '_blank');
+    try {
+        const response = await apiClient.get(`/users/${trainer.id}/view_resume/`, {
+            responseType: 'blob', // Important to handle the file download
+        });
+        const file = new Blob([response.data], { type: 'application/pdf' });
+        const fileURL = URL.createObjectURL(file);
+        window.open(fileURL, '_blank');
+    } catch (error) {
+        console.error("Failed to fetch resume:", error);
+        alert("Could not open resume. The file may be missing or there was a server error.");
+    }
   };
   
   const handleCopyLink = () => {

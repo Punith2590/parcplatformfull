@@ -10,13 +10,11 @@ import { StudentDashboard } from './components/student/StudentDashboard';
 import { Role } from './types';
 import AuthPage from './components/auth/AuthPage';
 import TrainerOnboardingForm from './components/auth/TrainerOnboardingForm';
+import ChangePasswordForm from './components/auth/ChangePasswordForm';
 
-// This new component will contain all routes and logic that should
-// only exist AFTER the initial authentication check is complete.
 const AppRoutes = () => {
   const { user, loading } = useAuth();
 
-  // Show a global loading indicator while AuthProvider checks for a session.
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-slate-50">
@@ -25,24 +23,28 @@ const AppRoutes = () => {
     );
   }
 
+  // If user must change password, show only that page
+  if (user && user.must_change_password) {
+    return (
+      <Routes>
+        <Route path="*" element={<ChangePasswordForm />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
-      {/* Public Routes */}
       <Route path="/onboarding" element={<TrainerOnboardingForm />} />
       <Route path="/login" element={!user ? <AuthPage /> : <Navigate to="/" replace />} />
 
-      {/* Protected Routes */}
       <Route 
-        path="/*" // Match all other routes
+        path="/*"
         element={
           user ? (
-            // The DataProvider is ONLY rendered if a user exists.
-            // This guarantees that any component inside it can make authenticated requests.
             <DataProvider>
               <Dashboard user={user} />
             </DataProvider>
           ) : (
-            // If there's no user, redirect any other path to the login page.
             <Navigate to="/login" replace />
           )
         } 
@@ -60,7 +62,6 @@ const Dashboard = ({ user }) => {
       case Role.STUDENT:
         return <StudentDashboard />;
       default:
-        // If the role is unknown, log out to be safe
         return <Navigate to="/login" replace />;
     }
 }
