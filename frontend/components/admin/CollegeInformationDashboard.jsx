@@ -8,6 +8,7 @@ import Modal from '../shared/Modal';
 import AssignMaterialsModal from '../shared/AssignMaterialsModal';
 import BulkAddStudentsModal from './BulkAddStudentsModal';
 import BatchStudentsModal from './BatchStudentsModal';
+import ManageBatchStudentsModal from './ManageBatchStudentsModal'; // Import the modal
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import Spinner from '../shared/Spinner';
@@ -66,7 +67,7 @@ const StudentTab = ({ college }) => {
             name: newStudent.name,
             email: newStudent.email,
             role: Role.STUDENT,
-            batches: [newStudent.batchId] // Pass the selected batch ID
+            batches: [newStudent.batchId]
         });
         setIsAddStudentModalOpen(false);
         setNewStudent({ name: '', email: '', batchId: '' });
@@ -278,7 +279,8 @@ const BatchTab = ({ college }) => {
     const { batches, addBatch, updateBatch, deleteBatch, globalSearchTerm } = useData();
     const [showAddModal, setShowAddModal] = useState(false);
     const [editingBatch, setEditingBatch] = useState(null);
-    const [viewingStudentsBatch, setViewingStudentsBatch] = useState(null); // <-- NEW STATE
+    const [viewingStudentsBatch, setViewingStudentsBatch] = useState(null);
+    const [managingStudentsBatch, setManagingStudentsBatch] = useState(null);
 
     const collegeCourses = college.courses;
     const collegeBatches = useMemo(() => {
@@ -308,6 +310,10 @@ const BatchTab = ({ college }) => {
     
     const handleViewStudents = (batch) => {
         setViewingStudentsBatch(batch);
+    };
+
+    const handleManageStudents = (batch) => {
+        setManagingStudentsBatch(batch);
     };
 
     const filteredBatches = collegeBatches.filter(batch =>
@@ -344,8 +350,15 @@ const BatchTab = ({ college }) => {
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(batch.start_date).toLocaleDateString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{new Date(batch.end_date).toLocaleDateString()}</td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                                    <button onClick={(e) => { e.stopPropagation(); handleUpdate(batch); }} className="p-2 text-blue-500 hover:text-blue-800 rounded-md bg-blue-100 hover:bg-blue-200"><PencilIcon className="w-4 h-4" /></button>
-                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(batch.id); }} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200"><XIcon className="w-4 h-4" /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleManageStudents(batch); }} className="p-2 text-green-500 hover:text-green-800 rounded-md bg-green-100 hover:bg-green-200" title="Manage Students">
+                                        <UsersIcon className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleUpdate(batch); }} className="p-2 text-blue-500 hover:text-blue-800 rounded-md bg-blue-100 hover:bg-blue-200" title="Edit Batch">
+                                        <PencilIcon className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDelete(batch.id); }} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200" title="Delete Batch">
+                                        <XIcon className="w-4 h-4" />
+                                    </button>
                                 </td>
                             </tr>
                         ))}
@@ -354,6 +367,13 @@ const BatchTab = ({ college }) => {
             </div>
             {showAddModal && <AddBatchModal onClose={() => { setShowAddModal(false); setEditingBatch(null); }} onAddBatch={handleAddOrUpdateBatch} initialBatch={editingBatch} collegeCourses={collegeCourses} />}
             {viewingStudentsBatch && <BatchStudentsModal isOpen={!!viewingStudentsBatch} onClose={() => setViewingStudentsBatch(null)} batch={viewingStudentsBatch} />}
+            {managingStudentsBatch && (
+                <ManageBatchStudentsModal
+                    isOpen={!!managingStudentsBatch}
+                    onClose={() => setManagingStudentsBatch(null)}
+                    batch={managingStudentsBatch}
+                />
+            )}
         </div>
     );
 };

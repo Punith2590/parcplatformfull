@@ -5,7 +5,7 @@ import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { MaterialType } from '../../types';
 import Modal from '../shared/Modal';
-import MaterialViewer from '../shared/MaterialViewer';
+import MaterialViewerModal from '../shared/MaterialViewerModal';
 import { BookOpenIcon, EyeIcon, PencilIcon, XIcon, UploadIcon } from '../icons/Icons';
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
@@ -127,13 +127,11 @@ const TrainerMaterialManager = () => {
     };
 
     const handleViewMaterial = (material) => {
-        const fileUrl = `${BACKEND_URL}${material.content}`;
-        if (material.type === MaterialType.VIDEO) {
-            setSelectedMaterial({ ...material, content: fileUrl });
-            setIsViewerOpen(true);
-        } else {
-            window.open(fileUrl, '_blank');
-        }
+        const content = material.type === MaterialType.VIDEO
+          ? (material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`)
+          : material.content;
+        setSelectedMaterial({ ...material, content });
+        setIsViewerOpen(true);
     };
 
     const formLabelClasses = "block text-sm font-medium text-slate-700";
@@ -173,7 +171,7 @@ const TrainerMaterialManager = () => {
         </div>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingMaterial ? 'Edit Material' : 'Add New Material'}>
+    <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingMaterial ? 'Edit Material' : 'Add New Material'}>
         <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label htmlFor="title" className={formLabelClasses}>Title</label>
@@ -219,9 +217,11 @@ const TrainerMaterialManager = () => {
         </form>
       </Modal>
 
-      <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={selectedMaterial?.title || 'Material Viewer'} size="xl">
-          <MaterialViewer material={selectedMaterial} />
-      </Modal>
+            <MaterialViewerModal 
+                isOpen={isViewerOpen}
+                onClose={() => setIsViewerOpen(false)}
+                material={selectedMaterial}
+            />
     </div>
   );
 };

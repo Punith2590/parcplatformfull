@@ -1,6 +1,6 @@
 # backend/core/views.py
 
-from django.http import FileResponse, HttpResponse
+from django.http import FileResponse, HttpResponse, Http404
 from django.core.mail import send_mail
 from django.utils import timezone
 from django.db.models import Sum, Q
@@ -25,6 +25,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 import pandas as pd
 from django.db import IntegrityError, transaction
 from .utils import send_student_credentials
+import mimetypes
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
@@ -167,6 +168,51 @@ class MaterialViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.role == 'ADMIN':
             return Material.objects.all()
         return Material.objects.filter(Q(uploader__isnull=True) | Q(uploader=user))
+
+    @action(detail=True, methods=['get'])
+    def view_content(self, request, pk=None):
+        # get_object will raise Http404 if not found
+        material = self.get_object()
+
+        user = request.user
+        allowed = False
+        role = getattr(user, 'role', None)
+
+        if role == 'ADMIN' or user.is_staff:
+            allowed = True
+        elif role == 'TRAINER':
+            # Trainers can view:
+            # - Materials they uploaded
+            # - Public materials (no uploader)
+            # - Materials linked to their schedules
+            if material.uploader_id == user.id or material.uploader_id is None:
+                allowed = True
+            else:
+                allowed = Schedule.objects.filter(trainer=user, materials__id=material.id).exists()
+        elif role == 'STUDENT':
+            # Students can view:
+            # - Materials explicitly assigned to them
+            # - Public materials that belong to courses they are in (via batches)
+            if user.assigned_materials.filter(id=material.id).exists():
+                allowed = True
+            else:
+                # Check if student is in any batch whose course matches the material's course
+                if material.course_id is not None:
+                    allowed = user.batches.filter(course_id=material.course_id).exists()
+
+        if not allowed:
+            return Response({'detail': 'You do not have permission to view this material.'}, status=status.HTTP_403_FORBIDDEN)
+
+        file_field = material.content
+        if not file_field:
+            return Response({'detail': 'No content found for this material.'}, status=status.HTTP_404_NOT_FOUND)
+
+        f = file_field.open('rb')
+        content_type, _ = mimetypes.guess_type(file_field.name)
+        content_type = content_type or 'application/octet-stream'
+        response = FileResponse(f, content_type=content_type)
+        response['Content-Disposition'] = f'inline; filename="{file_field.name.rsplit("/", 1)[-1]}"'
+        return response
 
     def perform_create(self, serializer):
         if self.request.user.role == 'TRAINER':

@@ -3,8 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import Modal from '../shared/Modal';
-import MaterialViewer from '../shared/MaterialViewer'; // Use the shared viewer
+import MaterialViewerModal from '../shared/MaterialViewerModal';
 import { BookOpenIcon } from '../icons/Icons';
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
@@ -62,13 +61,12 @@ const MyCourses = () => {
   }, [materials, batches, courses, fullStudentData, user]);
   
   const handleViewMaterial = (material) => {
-    const fileUrl = `${BACKEND_URL}${material.content}`;
-    if (material.type === 'VIDEO') {
-        setSelectedMaterial({ ...material, content: fileUrl });
-        setIsViewerOpen(true);
-    } else {
-        window.open(fileUrl, '_blank');
-    }
+    // Always open in-app viewer modal. For videos, ensure absolute URL; for docs, PdfViewer will fetch securely.
+    const content = material.type === 'VIDEO'
+      ? (material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`)
+      : material.content;
+    setSelectedMaterial({ ...material, content });
+    setIsViewerOpen(true);
   };
 
   const courseNames = (user && Array.isArray(user.courses) && user.courses.length > 0) 
@@ -111,9 +109,11 @@ const MyCourses = () => {
         </div>
       </div>
 
-      <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title={selectedMaterial?.title || 'Material Viewer'} size="xl">
-          <MaterialViewer material={selectedMaterial} />
-      </Modal>
+      <MaterialViewerModal 
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        material={selectedMaterial}
+      />
     </div>
   );
 };

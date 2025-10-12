@@ -4,10 +4,8 @@ import React, { useState, useRef } from 'react';
 import { useData } from '../../context/DataContext';
 import { MaterialType } from '../../types';
 import Modal from '../shared/Modal';
-import MaterialViewer from '../shared/MaterialViewer';
+import MaterialViewerModal from '../shared/MaterialViewerModal';
 import { BookOpenIcon, EyeIcon, XIcon, PencilIcon, UploadIcon } from '../icons/Icons';
-
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
 
 const MaterialManager = () => {
   const { materials, courses, addMaterial, updateMaterial, deleteMaterial } = useData();
@@ -33,19 +31,12 @@ const MaterialManager = () => {
     }
   };
 
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
+  const handleDragOver = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = (e) => { e.preventDefault(); setIsDragging(false); };
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files && e.dataTransfer.files[0];
-    handleFileChange(file);
+    handleFileChange(e.dataTransfer.files && e.dataTransfer.files[0]);
   };
 
   const handleOpenModal = (material = null) => {
@@ -93,18 +84,9 @@ const MaterialManager = () => {
     }
   };
 
-  // --- UPDATED VIEW LOGIC ---
   const handleViewMaterial = (material) => {
-    const fileUrl = material.content.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
-
-    if (material.type === MaterialType.VIDEO) {
-      // If it's a video, open our in-app modal viewer
-      setMaterialToView({ ...material, content: fileUrl });
-      setIsViewerOpen(true);
-    } else {
-      // For anything else (PDF, DOC, etc.), open it in a new tab
-      window.open(fileUrl, '_blank');
-    }
+    setMaterialToView(material);
+    setIsViewerOpen(true);
   };
   
   const formLabelClasses = "block text-sm font-medium text-slate-700";
@@ -138,7 +120,7 @@ const MaterialManager = () => {
                   {materials.map((material) => (
                     <tr key={material.id} className="hover:bg-slate-50 transition-colors">
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{material.title}</td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{courses.find(c => c.id === material.course)?.name || 'N/A'}</td>
+                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{material.course_name}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                         <span className="text-xs font-semibold bg-slate-100 text-slate-700 px-2 py-1 rounded-full">{material.type}</span>
                       </td>
@@ -174,9 +156,7 @@ const MaterialManager = () => {
                     <label htmlFor="course" className={formLabelClasses}>Course</label>
                     <select name="course" id="course" value={newMaterial.course} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm">
                         <option value="" disabled>Select a course</option>
-                        {courses.map(course => (
-                            <option key={course.id} value={course.id}>{course.name}</option>
-                        ))}
+                        {courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}
                     </select>
                 </div>
                 <div>
@@ -191,16 +171,10 @@ const MaterialManager = () => {
               <label className={formLabelClasses}>{editingMaterial ? 'Upload New File (Optional)' : 'Upload File'}</label>
               <div 
                 className={`mt-1 flex justify-center items-center w-full h-32 px-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${isDragging ? 'border-violet-500 bg-violet-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'}`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-              >
+                onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()} >
                   <input ref={fileInputRef} type="file" name="content" id="content" onChange={(e) => handleFileChange(e.target.files[0])} required={!editingMaterial} className="hidden"/>
                   <div className="text-center">
-                    {newMaterial.content ? (
-                        <p className="text-sm text-slate-700 font-semibold">{newMaterial.content.name}</p>
-                    ) : (
+                    {newMaterial.content ? (<p className="text-sm text-slate-700 font-semibold">{newMaterial.content.name}</p>) : (
                         <>
                             <UploadIcon className="mx-auto h-8 w-8 text-slate-400" />
                             <p className="mt-2 text-sm text-slate-600"><span className="font-semibold text-violet-600">Click to upload</span> or drag and drop</p>
@@ -220,10 +194,13 @@ const MaterialManager = () => {
         </form>
       </Modal>
 
-      <Modal isOpen={isViewerOpen} onClose={() => setIsViewerOpen(false)} title="Video Viewer" size="xl">
-        <MaterialViewer material={materialToView} />
-      </Modal>
-
+      {materialToView && (
+        <MaterialViewerModal 
+            isOpen={isViewerOpen}
+            onClose={() => setIsViewerOpen(false)}
+            material={materialToView}
+        />
+      )}
     </div>
   );
 };

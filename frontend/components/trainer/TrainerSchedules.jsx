@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import Modal from '../shared/Modal';
-import MaterialViewer from '../shared/MaterialViewer';
+import MaterialViewerModal from '../shared/MaterialViewerModal';
 import { EyeIcon, XIcon, BookOpenIcon } from '../icons/Icons';
 import Calendar from './Calendar';
 
@@ -17,9 +17,9 @@ const TrainerSchedules = () => {
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
 
-  // State for the actual video viewer modal
-  const [isVideoViewerOpen, setIsVideoViewerOpen] = useState(false);
-  const [materialForVideoViewer, setMaterialForVideoViewer] = useState(null);
+  // State for the actual viewer modal (all types)
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [materialForViewer, setMaterialForViewer] = useState(null);
 
   const mySchedules = useMemo(() => {
     if (!user) return [];
@@ -50,14 +50,11 @@ const TrainerSchedules = () => {
   };
 
   const handleMaterialClick = (material) => {
-    const fileUrl = material.content.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
-
-    if (material.type === 'VIDEO') {
-        setMaterialForVideoViewer({ ...material, content: fileUrl });
-        setIsVideoViewerOpen(true);
-    } else {
-        window.open(fileUrl, '_blank');
-    }
+    const content = material.type === 'VIDEO'
+      ? (material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`)
+      : material.content;
+    setMaterialForViewer({ ...material, content });
+    setIsViewerOpen(true);
   };
   
   const getScheduleHeader = () => {
@@ -150,10 +147,12 @@ const TrainerSchedules = () => {
           )}
       </Modal>
 
-      {/* Modal for viewing a video */}
-      <Modal isOpen={isVideoViewerOpen} onClose={() => setIsVideoViewerOpen(false)} title={materialForVideoViewer?.title || 'Video Viewer'} size="xl">
-        <MaterialViewer material={materialForVideoViewer} />
-      </Modal>
+      {/* Modal for viewing material inline (video, pdf, doc, ppt) */}
+      <MaterialViewerModal 
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        material={materialForViewer}
+      />
     </div>
   );
 };
