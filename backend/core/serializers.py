@@ -1,7 +1,7 @@
 # backend/core/serializers.py
 
 from rest_framework import serializers
-from .models import Batch, StudentAttempt, User, College, Material, Schedule, TrainerApplication, Expense, Bill, Assessment, Course
+from .models import Batch, Module, StudentAttempt, User, College, Material, Schedule, TrainerApplication, Expense, Bill, Assessment, Course
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -92,10 +92,33 @@ class UserSerializer(serializers.ModelSerializer):
         
         return user
 
+class MaterialSerializer(serializers.ModelSerializer):
+    course_name = serializers.CharField(source='course.name', read_only=True)
+    uploader = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Material
+        fields = ['id', 'title', 'course', 'course_name', 'type', 'content', 'uploader', 'duration_in_minutes']
+        extra_kwargs = {
+            'course': {'required': True}
+        }
+
+class ModuleSerializer(serializers.ModelSerializer):
+    materials = MaterialSerializer(many=True, read_only=True)
+    material_ids = serializers.PrimaryKeyRelatedField(
+        queryset=Material.objects.all(), many=True, write_only=True, source='materials', required=False
+    )
+
+    class Meta:
+        model = Module
+        fields = ['id', 'course', 'module_number', 'title', 'materials', 'material_ids']
+
 class CourseSerializer(serializers.ModelSerializer):
+    modules = ModuleSerializer(many=True, read_only=True)
+    
     class Meta:
         model = Course
-        fields = '__all__'
+        fields = ['id', 'name', 'description', 'modules', 'cover_photo']
 
 class CollegeSerializer(serializers.ModelSerializer):
     courses = CourseSerializer(many=True, read_only=True)
@@ -103,17 +126,6 @@ class CollegeSerializer(serializers.ModelSerializer):
     class Meta:
         model = College
         fields = '__all__'
-
-class MaterialSerializer(serializers.ModelSerializer):
-    course_name = serializers.CharField(source='course.name', read_only=True)
-    uploader = serializers.PrimaryKeyRelatedField(read_only=True)
-
-    class Meta:
-        model = Material
-        fields = ['id', 'title', 'course', 'course_name', 'type', 'content', 'uploader']
-        extra_kwargs = {
-            'course': {'required': True}
-        }
 
 class ScheduleSerializer(serializers.ModelSerializer):
     trainer_name = serializers.CharField(source='trainer.get_full_name', read_only=True)

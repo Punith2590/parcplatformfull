@@ -14,10 +14,12 @@ import CollegeInformationDashboard from './CollegeInformationDashboard';
 import BillingManager from './BillingManager';
 import CourseManager from './CourseManager';
 import BatchManager from './BatchManager';
+import CourseInformationDashboard from './CourseInformationDashboard'; // Make sure this is imported
 
 const AdminDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedCollege, setSelectedCollege] = useState(null);
+  const [selectedCourse, setSelectedCourse] = useState(null); // <-- ADDED STATE FOR SELECTED COURSE
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -27,9 +29,19 @@ const AdminDashboard = () => {
     setCurrentView('collegeDetails');
   };
 
+  // --- THIS IS THE NEW NAVIGATION HANDLER FOR COURSES ---
+  const navigateToCourse = (course) => {
+    setSelectedCourse(course);
+    setCurrentView('courseDetails');
+  };
+
   const handleSetView = (view) => {
+    // Reset selections when changing main views
     if (view !== 'collegeDetails') {
       setSelectedCollege(null);
+    }
+    if (view !== 'courseDetails') {
+      setSelectedCourse(null);
     }
     setCurrentView(view);
   };
@@ -44,8 +56,9 @@ const AdminDashboard = () => {
         return <CollegeManager onCollegeSelect={navigateToCollege} />;
       case 'materials':
         return <MaterialManager />;
+      // --- MODIFIED THIS CASE ---
       case 'courses':
-        return <CourseManager />;
+        return <CourseManager onCourseSelect={navigateToCourse} />; // Pass the navigation function
       case 'batches':
         return <BatchManager />;
       case 'schedules':
@@ -57,7 +70,12 @@ const AdminDashboard = () => {
       case 'collegeDetails':
         return selectedCollege 
           ? <CollegeInformationDashboard college={selectedCollege} onBack={() => handleSetView('colleges')} />
-          : <CollegeManager onCollegeSelect={navigateToCollege} />; // Fallback if no college is selected
+          : <CollegeManager onCollegeSelect={navigateToCollege} />;
+      // --- ADDED THIS NEW CASE ---
+      case 'courseDetails':
+        return selectedCourse
+          ? <CourseInformationDashboard course={selectedCourse} onBack={() => handleSetView('courses')} />
+          : <CourseManager onCourseSelect={navigateToCourse} />; // Fallback if no course is selected
       case 'dashboard':
       default:
         return <AdminHome setView={handleSetView} />;

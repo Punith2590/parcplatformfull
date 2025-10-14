@@ -367,33 +367,13 @@ export const DataProvider = ({ children }) => {
     }
   };
 
-  const bulkAddStudents = async (batchId, file) => {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('batch', batchId);
-
-    try {
-      const response = await apiClient.post('/users/bulk_create_students/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      const usersResponse = await apiClient.get('/users/');
-      setUsers(usersResponse.data);
-      return { success: true, message: response.data.status };
-    } catch (error) {
-      const errorData = error.response?.data;
-      console.error("Failed to bulk add students:", errorData);
-      const errorMessage = errorData?.errors ? errorData.errors.join('\n') : (errorData?.error || "An unknown error occurred.");
-      setError(errorMessage);
-      return { success: false, message: errorMessage };
-    }
-  };
-
   const addCourse = async (courseData) => {
     try {
-      const response = await apiClient.post('/courses/', courseData);
-      setCourses(prev => [response.data, ...prev]);
+      const response = await apiClient.post('/courses/', courseData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const newCourseResponse = await apiClient.get(`/courses/${response.data.id}/`);
+      setCourses(prev => [newCourseResponse.data, ...prev]);
     } catch (error) {
       console.error("Failed to add course:", error.response?.data || error.message);
       setError("Could not add course.");
@@ -402,8 +382,11 @@ export const DataProvider = ({ children }) => {
 
   const updateCourse = async (courseId, courseData) => {
     try {
-      const response = await apiClient.patch(`/courses/${courseId}/`, courseData);
-      setCourses(prev => prev.map(c => (c.id === courseId ? response.data : c)));
+      const response = await apiClient.patch(`/courses/${courseId}/`, courseData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const updatedCourseResponse = await apiClient.get(`/courses/${courseId}/`);
+      setCourses(prev => prev.map(c => (c.id === courseId ? updatedCourseResponse.data : c)));
     } catch (error) {
       console.error("Failed to update course:", error.response?.data || error.message);
       setError("Could not update course.");
@@ -451,6 +434,7 @@ export const DataProvider = ({ children }) => {
     try {
       const response = await apiClient.post(`/batches/${batchId}/add_students_from_file/`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000, // <-- INCREASED TIMEOUT TO 60 SECONDS
       });
       // Refresh data
       setBatches(prev => prev.map(b => b.id === batchId ? response.data : b));
@@ -503,17 +487,54 @@ export const DataProvider = ({ children }) => {
       await apiClient.delete(`/batches/${batchId}/`);
       setBatches(prev => prev.filter(b => b.id !== batchId));
     } catch (error) {
-      console.error("Failed to delete batch:", error);
-      setError("Could not delete batch.");
+      if (error.response && error.response.data && error.response.data.error) {
+        alert(error.response.data.error.join('\n')); // Show the specific error from the backend
+      } else {
+        console.error("Failed to delete batch:", error);
+        setError("Could not delete batch.");
+      }
     }
+  };
+
+  const addModule = async (moduleData) => {
+    try {
+      const response = await apiClient.post('/modules/', moduleData);
+      const courseResponse = await apiClient.get(`/courses/${moduleData.course}/`);
+      setCourses(prev => prev.map(c => c.id === moduleData.course ? courseResponse.data : c));
+    } catch (error) {
+        console.error("Failed to add module:", error.response?.data || error.message);
+        setError("Could not add module.");
+    }
+  };
+
+  const updateModule = async (moduleId, moduleData) => {
+      try {
+          const response = await apiClient.patch(`/modules/${moduleId}/`, moduleData);
+          const courseResponse = await apiClient.get(`/courses/${moduleData.course}/`);
+          setCourses(prev => prev.map(c => c.id === moduleData.course ? courseResponse.data : c));
+      } catch (error) {
+          console.error("Failed to update module:", error.response?.data || error.message);
+          setError("Could not update module.");
+      }
+  };
+
+  const deleteModule = async (moduleId) => {
+      try {
+          const moduleToDelete = courses.flatMap(c => c.modules).find(m => m.id === moduleId);
+          if (!moduleToDelete) return;
+          await apiClient.delete(`/modules/${moduleId}/`);
+          const courseResponse = await apiClient.get(`/courses/${moduleToDelete.course}/`);
+          setCourses(prev => prev.map(c => c.id === moduleToDelete.course ? courseResponse.data : c));
+      } catch (error) {
+          console.error("Failed to delete module:", error);
+          setError("Could not delete module.");
+      }
   };
 
   const submitAssessmentAttempt = async (attemptData) => {
     try {
       const response = await apiClient.post('/attempts/', attemptData);
-      // Add the new attempt to the local state
       setStudentAttempts(prev => [{ ...response.data, timestamp: new Date(response.data.timestamp) }, ...prev]);
-      // Manually refetch reporting data to update leaderboard
       const reportingResponse = await apiClient.get('/reporting/');
       setLeaderboard(reportingResponse.data.leaderboard || []);
       return { success: true, message: 'Assessment submitted successfully!' };
@@ -553,11 +574,13 @@ export const DataProvider = ({ children }) => {
     addBatch: addBatchWithStudents, 
     updateBatch, 
     deleteBatch,
+    addModule,
+    updateModule,
+    deleteModule,
     addBill,
     updateBillStatus,
     globalSearchTerm,
     setGlobalSearchTerm,
-    bulkAddStudents,
     submitAssessmentAttempt,
     addStudentsToBatch,
     removeStudentsFromBatch,

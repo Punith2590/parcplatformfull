@@ -17,12 +17,12 @@ const MaterialManager = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
-  const getInitialMaterialState = () => ({ title: '', course: '', type: MaterialType.DOC, content: null });
+  const getInitialMaterialState = () => ({ title: '', course: '', type: MaterialType.DOC, content: null, duration_in_minutes: 0 });
   const [newMaterial, setNewMaterial] = useState(getInitialMaterialState());
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setNewMaterial(prev => ({ ...prev, [name]: value }));
+    const { name, value, type } = e.target;
+    setNewMaterial(prev => ({ ...prev, [name]: type === 'number' ? parseInt(value, 10) : value }));
   };
   
   const handleFileChange = (file) => {
@@ -42,7 +42,7 @@ const MaterialManager = () => {
   const handleOpenModal = (material = null) => {
     if (material) {
       setEditingMaterial(material);
-      setNewMaterial({ title: material.title, course: material.course, type: material.type, content: null });
+      setNewMaterial({ title: material.title, course: material.course, type: material.type, content: null, duration_in_minutes: material.duration_in_minutes || 0 });
     } else {
       setEditingMaterial(null);
       setNewMaterial(getInitialMaterialState());
@@ -62,6 +62,7 @@ const MaterialManager = () => {
     formData.append('title', newMaterial.title);
     formData.append('course', newMaterial.course);
     formData.append('type', newMaterial.type);
+    formData.append('duration_in_minutes', newMaterial.duration_in_minutes);
     
     if (newMaterial.content) {
         formData.append('content', newMaterial.content);
@@ -165,6 +166,11 @@ const MaterialManager = () => {
                         {Object.values(MaterialType).map(type => <option key={type} value={type}>{type}</option>)}
                     </select>
                 </div>
+            </div>
+
+             <div>
+                <label htmlFor="duration_in_minutes" className={formLabelClasses}>Duration (in minutes)</label>
+                <input type="number" name="duration_in_minutes" id="duration_in_minutes" value={newMaterial.duration_in_minutes} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm" placeholder="e.g., 10" />
             </div>
 
             <div>

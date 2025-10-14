@@ -4,6 +4,7 @@ from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 class User(AbstractUser):
     ROLE_CHOICES = (
@@ -44,6 +45,7 @@ class Material(models.Model):
     type = models.CharField(max_length=10, choices=MATERIAL_TYPE_CHOICES)
     content = models.FileField(upload_to='materials/')
     uploader = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_materials')
+    duration_in_minutes = models.PositiveIntegerField(default=0, help_text="Duration of the material in minutes.")
     def __str__(self):
         return self.title
 
@@ -129,6 +131,7 @@ class StudentAttempt(models.Model):
 class Course(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    cover_photo = models.ImageField(upload_to='course_covers/', null=True, blank=True)
 
     def __str__(self):
         return self.name
@@ -145,3 +148,21 @@ class Batch(models.Model):
 
     def __str__(self):
         return f"{self.course.name} - {self.name}"
+
+    def delete(self, *args, **kwargs):
+        if self.students.count() > 0:
+            raise ValidationError("Cannot delete a batch that has students enrolled. Please remove all students from the batch first.")
+        super().delete(*args, **kwargs)
+
+class Module(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
+    module_number = models.PositiveIntegerField()
+    title = models.CharField(max_length=200)
+    materials = models.ManyToManyField(Material, blank=True, related_name='modules')
+
+    class Meta:
+        unique_together = ('course', 'module_number')
+        ordering = ['module_number']
+
+    def __str__(self):
+        return f"Module {self.module_number}: {self.title} ({self.course.name})"

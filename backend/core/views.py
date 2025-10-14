@@ -11,14 +11,15 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.exceptions import PermissionDenied
+from django.core.exceptions import ValidationError
 from .models import (
     User, College, Material, Schedule, TrainerApplication, Bill,
-    Assessment, StudentAttempt, Course, Batch
+    Assessment, StudentAttempt, Course, Batch, Module
 )
 from .serializers import (
     UserSerializer, CollegeSerializer, MaterialSerializer,
     ScheduleSerializer, MyTokenObtainPairSerializer, TrainerApplicationSerializer,
-    BillSerializer, AssessmentSerializer, StudentAttemptSerializer, CourseSerializer, BatchSerializer
+    BillSerializer, AssessmentSerializer, StudentAttemptSerializer, CourseSerializer, BatchSerializer, ModuleSerializer
 )
 import secrets
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -162,16 +163,10 @@ class MaterialViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = MaterialSerializer
     parser_classes = (MultiPartParser, FormParser)
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_staff or user.role == 'ADMIN':
-            return Material.objects.all()
-        return Material.objects.filter(Q(uploader__isnull=True) | Q(uploader=user))
+    queryset = Material.objects.all() 
 
     @action(detail=True, methods=['get'])
     def view_content(self, request, pk=None):
-        # get_object will raise Http404 if not found
         material = self.get_object()
 
         user = request.user
@@ -181,22 +176,14 @@ class MaterialViewSet(viewsets.ModelViewSet):
         if role == 'ADMIN' or user.is_staff:
             allowed = True
         elif role == 'TRAINER':
-            # Trainers can view:
-            # - Materials they uploaded
-            # - Public materials (no uploader)
-            # - Materials linked to their schedules
             if material.uploader_id == user.id or material.uploader_id is None:
                 allowed = True
             else:
                 allowed = Schedule.objects.filter(trainer=user, materials__id=material.id).exists()
         elif role == 'STUDENT':
-            # Students can view:
-            # - Materials explicitly assigned to them
-            # - Public materials that belong to courses they are in (via batches)
             if user.assigned_materials.filter(id=material.id).exists():
                 allowed = True
             else:
-                # Check if student is in any batch whose course matches the material's course
                 if material.course_id is not None:
                     allowed = user.batches.filter(course_id=material.course_id).exists()
 
@@ -237,13 +224,27 @@ class MaterialViewSet(viewsets.ModelViewSet):
 
 class CourseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    queryset = Course.objects.all()
+    queryset = Course.objects.all().prefetch_related('modules__materials')
     serializer_class = CourseSerializer
+    parser_classes = (MultiPartParser, FormParser)
+
+class ModuleViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    queryset = Module.objects.all()
+    serializer_class = ModuleSerializer
 
 class BatchViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Batch.objects.all()
     serializer_class = BatchSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        try:
+            self.perform_destroy(instance)
+        except ValidationError as e:
+            return Response({"error": e.messages}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['post'], parser_classes=[MultiPartParser, FormParser])
     def create_with_students(self, request, *args, **kwargs):

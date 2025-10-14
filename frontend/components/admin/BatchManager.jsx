@@ -129,23 +129,6 @@ const BatchManager = () => {
     }
   };
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF();
-    doc.text('Batches List', 14, 16);
-    const tableRows = batches.map(batch => [
-      batch.course_name,
-      batch.name,
-      new Date(batch.start_date).toLocaleDateString(),
-      new Date(batch.end_date).toLocaleDateString(),
-    ]);
-    doc.autoTable({
-      head: [['Course', 'Batch Name', 'Start Date', 'End Date']],
-      body: tableRows,
-      startY: 22,
-    });
-    doc.save('batches.pdf');
-  };
-
   const handleViewStudents = (batch) => {
     setViewingStudentsBatch(batch);
   };
@@ -171,12 +154,6 @@ const BatchManager = () => {
           <p className="mt-2 text-slate-600">Create and manage course batches across all colleges.</p>
         </div>
         <div>
-          <button
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium shadow hover:bg-emerald-700 mr-2"
-            onClick={handleDownloadPDF}
-          >
-            Download PDF
-          </button>
           <button
             className="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium shadow hover:bg-violet-700"
             onClick={() => { setEditingBatch(null); setShowAddModal(true); }}

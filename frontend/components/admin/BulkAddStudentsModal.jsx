@@ -7,7 +7,7 @@ import { UploadIcon } from '../icons/Icons';
 import Spinner from '../shared/Spinner';
 
 const BulkAddStudentsModal = ({ college, isOpen, onClose }) => {
-    const { bulkAddStudents, batches } = useData();
+    const { addStudentsToBatchFromFile, batches } = useData();
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState(null);
@@ -41,7 +41,7 @@ const BulkAddStudentsModal = ({ college, isOpen, onClose }) => {
             return;
         }
         setLoading(true);
-        const response = await bulkAddStudents(selectedBatch, file);
+        const response = await addStudentsToBatchFromFile(selectedBatch, file);
         setResult(response.message);
         setLoading(false);
         if (response.success) {
