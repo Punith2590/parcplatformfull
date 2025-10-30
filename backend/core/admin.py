@@ -1,7 +1,11 @@
 # backend/core/admin.py
 
 from django.contrib import admin
-from .models import User, College, Material, Schedule, Module, Course, Batch
+from .models import (
+    User, College, Material, Schedule, Module, Course, Batch,
+    TrainerApplication, EmployeeApplication, Task,
+    Bill, Expense, Assessment, StudentAttempt, EmployeeDocument
+)
 
 # Register your models here to make them appear in the admin site.
 admin.site.register(User)
@@ -11,3 +15,11 @@ admin.site.register(Schedule)
 admin.site.register(Course)
 admin.site.register(Batch)
 admin.site.register(Module)
+admin.site.register(TrainerApplication)
+admin.site.register(EmployeeApplication) # <-- Register new
+admin.site.register(Task)               # <-- Register new
+admin.site.register(Bill)
+admin.site.register(Expense)
+admin.site.register(Assessment)
+admin.site.register(StudentAttempt)
+admin.site.register(EmployeeDocument)

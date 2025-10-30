@@ -1,7 +1,10 @@
+// frontend/types.js
+
 export const Role = {
   ADMIN: 'ADMIN',
   TRAINER: 'TRAINER',
   STUDENT: 'STUDENT',
+  EMPLOYEE: 'EMPLOYEE', // <-- Added
 };
 
 export const MaterialType = {
@@ -28,3 +31,11 @@ export const ExpenseType = {
   MATERIALS: 'Materials',
   OTHER: 'Other',
 };
+
+// --- NEW Task Status ---
+export const TaskStatus = {
+  TODO: 'TODO',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+};
+// --- END NEW Task Status ---

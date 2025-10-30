@@ -5,23 +5,26 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.conf import settings
 from django.core.exceptions import ValidationError
+import os
 
 class User(AbstractUser):
     ROLE_CHOICES = (
         ('ADMIN', 'Admin'),
         ('TRAINER', 'Trainer'),
         ('STUDENT', 'Student'),
+        ('EMPLOYEE', 'Employee'), # <-- ADDED EMPLOYEE ROLE
     )
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='ADMIN')
-    expertise = models.CharField(max_length=100, blank=True, null=True)
-    experience = models.IntegerField(blank=True, null=True)
+    expertise = models.CharField(max_length=100, blank=True, null=True) # Primarily for Trainers
+    experience = models.IntegerField(blank=True, null=True) # Primarily for Trainers
     phone = models.CharField(max_length=20, blank=True, null=True)
-    batches = models.ManyToManyField('Batch', blank=True, related_name='students')
-    access_expiry_date = models.DateTimeField(null=True, blank=True)
-    assigned_materials = models.ManyToManyField('Material', blank=True, related_name='assigned_users')
-    resume = models.FileField(upload_to='resumes/', null=True, blank=True)
-    assigned_assessments = models.ManyToManyField('Assessment', blank=True, related_name='assigned_students')
+    batches = models.ManyToManyField('Batch', blank=True, related_name='students') # Primarily for Students
+    access_expiry_date = models.DateTimeField(null=True, blank=True) # Primarily for Trainers
+    assigned_materials = models.ManyToManyField('Material', blank=True, related_name='assigned_users') # Primarily for Students
+    resume = models.FileField(upload_to='resumes/', null=True, blank=True) # For Trainers & Employees
+    assigned_assessments = models.ManyToManyField('Assessment', blank=True, related_name='assigned_students') # Primarily for Students
     must_change_password = models.BooleanField(default=False)
+    department = models.CharField(max_length=100, blank=True, null=True) # <-- ADDED FOR EMPLOYEES
 
     @property
     def get_full_name(self):
@@ -58,9 +61,12 @@ class Schedule(models.Model):
 
     def __str__(self):
         if self.batch:
-            return f"{self.batch.course.name} at {self.batch.college.name}"
-        return f"Unassigned Schedule for {self.trainer.get_full_name}"
-    
+            course_name = self.batch.course.name if self.batch.course else "N/A"
+            college_name = self.batch.college.name if self.batch.college else "N/A"
+            return f"{course_name} at {college_name}"
+        trainer_name = self.trainer.get_full_name if self.trainer else "N/A"
+        return f"Unassigned Schedule for {trainer_name}"
+
 class TrainerApplication(models.Model):
     name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
@@ -73,8 +79,21 @@ class TrainerApplication(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.name} - {self.email}"
-    
+        return f"Trainer App: {self.name} - {self.email}"
+
+class EmployeeApplication(models.Model):
+    name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    phone = models.CharField(max_length=20)
+    skills = models.TextField(blank=True, help_text="Relevant skills or experience")
+    department = models.CharField(max_length=100, blank=True, help_text="Intended department or role")
+    resume = models.FileField(upload_to='resumes/')
+    status = models.CharField(max_length=20, default='PENDING') # PENDING, APPROVED, DECLINED
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Employee App: {self.name} - {self.email}"
+
 class Bill(models.Model):
     STATUS_CHOICES = (
         ('PENDING', 'Pending'),
@@ -88,7 +107,6 @@ class Bill(models.Model):
     def save(self, *args, **kwargs):
         if not self.invoice_number:
             today = timezone.now().date()
-            today_string = today.strftime('%Y%m%d')
             next_bill_number = Bill.objects.filter(date__year=today.year).count() + 1
             self.invoice_number = f'INV-{today.year}-{next_bill_number:03d}'
         super().save(*args, **kwargs)
@@ -104,18 +122,18 @@ class Expense(models.Model):
 
     def __str__(self):
         return f"{self.type} - {self.amount}"
-    
+
 class Assessment(models.Model):
     ASSESSMENT_TYPE_CHOICES = (
         ('TEST', 'Test'),
         ('ASSIGNMENT', 'Assignment'),
     )
     title = models.CharField(max_length=100)
-    course = models.CharField(max_length=100)
+    course = models.CharField(max_length=100) # Consider making ForeignKey to Course
     type = models.CharField(max_length=20, choices=ASSESSMENT_TYPE_CHOICES)
     material = models.ForeignKey(Material, on_delete=models.SET_NULL, null=True, blank=True, related_name='assessments')
-    questions = models.JSONField(default=list) 
-    
+    questions = models.JSONField(default=list)
+
     def __str__(self):
         return self.title
 
@@ -124,10 +142,12 @@ class StudentAttempt(models.Model):
     assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name='attempts')
     score = models.IntegerField()
     timestamp = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
-        return f"{self.student.username} - {self.assessment.title} - {self.score}%"
-    
+        student_name = self.student.username if self.student else "N/A"
+        assessment_title = self.assessment.title if self.assessment else "N/A"
+        return f"{student_name} - {assessment_title} - {self.score}%"
+
 class Course(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
@@ -142,12 +162,14 @@ class Batch(models.Model):
     name = models.CharField(max_length=100)
     start_date = models.DateField()
     end_date = models.DateField()
-    
+
     class Meta:
         unique_together = ('course', 'name', 'college')
 
     def __str__(self):
-        return f"{self.course.name} - {self.name}"
+        course_name = self.course.name if self.course else "N/A"
+        college_name = f" ({self.college.name})" if self.college else ""
+        return f"{course_name} - {self.name}{college_name}"
 
     def delete(self, *args, **kwargs):
         if self.students.count() > 0:
@@ -165,4 +187,49 @@ class Module(models.Model):
         ordering = ['module_number']
 
     def __str__(self):
-        return f"Module {self.module_number}: {self.title} ({self.course.name})"
+        course_name = self.course.name if self.course else "N/A"
+        return f"Module {self.module_number}: {self.title} ({course_name})"
+
+class Task(models.Model):
+    STATUS_CHOICES = (
+        ('TODO', 'To Do'),
+        ('IN_PROGRESS', 'In Progress'),
+        ('COMPLETED', 'Completed'),
+    )
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='tasks',
+        limit_choices_to={'role': 'EMPLOYEE'} # Ensure only employees can be assigned
+    )
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='TODO')
+    due_date = models.DateField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        employee_name = self.employee.get_full_name if self.employee else "N/A"
+        return f"Task: {self.title} ({employee_name}) - {self.status}"
+    
+def employee_document_path(instance, filename):
+    # file will be uploaded to MEDIA_ROOT/employee_docs/<employee_id>/<filename>
+    return f'employee_docs/{instance.employee.id}/{filename}'
+
+class EmployeeDocument(models.Model):
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='documents',
+        limit_choices_to={'role': 'EMPLOYEE'} # Ensure only employees can have documents
+    )
+    title = models.CharField(max_length=200, help_text="Name or description of the document")
+    document = models.FileField(upload_to=employee_document_path) # Use dynamic path
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        employee_name = self.employee.get_full_name if self.employee else "N/A"
+        # Return filename if title is empty, otherwise title
+        doc_name = self.title or os.path.basename(self.document.name)
+        return f"Doc: {doc_name} ({employee_name})"

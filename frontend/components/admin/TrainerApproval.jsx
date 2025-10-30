@@ -1,40 +1,44 @@
 // frontend/components/admin/TrainerApproval.jsx
 
 import React from 'react';
+// --- FIX: Import useData correctly ---
 import { useData } from '../../context/DataContext';
 import apiClient from '../../api';
-import { EyeIcon } from '../icons/Icons'; // Import EyeIcon
+import { EyeIcon } from '../icons/Icons';
 
 const TrainerApproval = () => {
-  const { applications, removeApplication } = useData();
+  // --- FIX: Destructure with default empty array and use correct context function names ---
+  const { trainerApplications = [], approveTrainerApplication, declineTrainerApplication } = useData();
   const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
 
-  const approveApplication = async (applicationId) => {
+  // Approve function now uses the context function
+  const handleApprove = async (applicationId) => {
     try {
-      await apiClient.post(`/applications/${applicationId}/approve/`);
-      removeApplication(applicationId);
+      await approveTrainerApplication(applicationId);
+      // No need to manually remove, context handles it
     } catch (error) {
-      console.error("Failed to approve application:", error);
-      alert("Failed to approve application. The user may already exist.");
+      // Error handling is now primarily in the context, but you can add specific alerts here if needed
+      console.error("Approval failed (component level):", error);
+      // alert("Failed to approve application. The user may already exist or another error occurred."); // Optional: alert if context doesn't show errors
     }
   };
 
-  const declineApplication = async (applicationId) => {
+  // Decline function now uses the context function
+  const handleDecline = async (applicationId) => {
     if (window.confirm('Are you sure you want to decline this application? This action cannot be undone.')) {
         try {
-            await apiClient.post(`/applications/${applicationId}/decline/`);
-            // The removeApplication function from context works perfectly here too
-            removeApplication(applicationId);
+            await declineTrainerApplication(applicationId);
+             // No need to manually remove, context handles it
         } catch (error) {
-            console.error("Failed to decline application:", error);
-            alert("Failed to decline application. Please try again.");
+            console.error("Failed to decline application (component level):", error);
+            // alert("Failed to decline application. Please try again."); // Optional
         }
     }
   };
 
   const viewResume = (applicationId) => {
-    // Construct the full URL for the resume
-    const resumeUrl = `${API_URL}/applications/${applicationId}/view_resume/`;
+    // --- FIX: Use correct endpoint ---
+    const resumeUrl = `${API_URL}/trainer-applications/${applicationId}/view_resume/`;
     window.open(resumeUrl, '_blank');
   };
 
@@ -42,7 +46,7 @@ const TrainerApproval = () => {
     <div>
       <h1 className="text-3xl font-bold text-pygenic-blue">Trainer Approvals</h1>
       <p className="mt-2 text-slate-600">Review and approve new trainer applications.</p>
-      
+
       <div className="mt-8 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
           <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
@@ -56,44 +60,52 @@ const TrainerApproval = () => {
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Experience</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Resume</th>
                     <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">Approve</span>
+                      Actions
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
-                  {applications.length > 0 ? applications.map((app) => (
+                  {/* --- FIX: Add Array.isArray check --- */}
+                  {Array.isArray(trainerApplications) && trainerApplications.length > 0 ? (
+                    trainerApplications.map((app) => (
                     <tr key={app.id} className="hover:bg-slate-50 transition-colors">
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{app.name}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                         <div>{app.email}</div>
                         <div>{app.phone}</div>
                       </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{app.expertise_domains}</td>
+                      <td className="px-3 py-4 text-sm text-slate-500 max-w-xs truncate">{app.expertise_domains}</td> {/* Added truncate */}
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{app.experience} years</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
-                        <button onClick={() => viewResume(app.id)} className="flex items-center gap-1 text-slate-600 hover:text-violet-600">
-                           <EyeIcon className="w-4 h-4" /> View
-                        </button>
+                         {app.resume ? (
+                            <button onClick={() => viewResume(app.id)} className="flex items-center gap-1 text-slate-600 hover:text-violet-600">
+                               <EyeIcon className="w-4 h-4" /> View
+                            </button>
+                         ) : (
+                            'N/A'
+                         )}
                       </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
                         <button
-                          onClick={() => declineApplication(app.id)}
+                          onClick={() => handleDecline(app.id)} // Use handleDecline
                           className="px-2.5 py-1.5 text-xs font-semibold text-red-700 bg-red-100 rounded-md shadow-sm hover:bg-red-200"
                         >
                           Decline
                         </button>
                         <button
-                          onClick={() => approveApplication(app.id)}
-                          className="text-violet-600 hover:text-violet-900"
+                          onClick={() => handleApprove(app.id)} // Use handleApprove
+                          className="px-2.5 py-1.5 text-xs font-semibold text-green-700 bg-green-100 rounded-md shadow-sm hover:bg-green-200 ml-2" // Use Approve styles
                         >
-                          Approve<span className="sr-only">, {app.name}</span>
+                          Approve
                         </button>
                       </td>
                     </tr>
-                  )) : (
+                   ))
+                  ) : (
                     <tr>
                       <td colSpan={6} className="text-center py-10 text-slate-500">
-                        No pending applications.
+                        {/* More specific message */}
+                        {Array.isArray(trainerApplications) ? 'No pending trainer applications.' : 'Loading applications...'}
                       </td>
                     </tr>
                   )}
