@@ -24,7 +24,10 @@ class User(AbstractUser):
     resume = models.FileField(upload_to='resumes/', null=True, blank=True) # For Trainers & Employees
     assigned_assessments = models.ManyToManyField('Assessment', blank=True, related_name='assigned_students') # Primarily for Students
     must_change_password = models.BooleanField(default=False)
-    department = models.CharField(max_length=100, blank=True, null=True) # <-- ADDED FOR EMPLOYEES
+    department = models.CharField(max_length=100, blank=True, null=True)
+    bio = models.TextField(blank=True, null=True, help_text="Professional summary or bio")
+    education = models.TextField(blank=True, null=True, help_text="Education, degrees, and certifications")
+    work_history = models.TextField(blank=True, null=True, help_text="Detailed experience, achievements, and work history")
 
     @property
     def get_full_name(self):

@@ -6,7 +6,7 @@ import {
     CalendarIcon, ChartBarIcon, UsersIcon, AcademicCapIcon,
     TrophyIcon, ClipboardListIcon, CurrencyDollarIcon, StudentsIcon,
     GraduationCapIcon, CollectionIcon, BriefcaseIcon, ClipboardDocumentListIcon,
-    DocumentIcon
+    DocumentIcon, UserCircleIcon
 } from '../icons/Icons';
 import { Role } from '../../types';
 
@@ -49,6 +49,7 @@ const employeeNavItems = [
     { name: 'Dashboard', view: 'dashboard', icon: DashboardIcon }, // <-- ADDED
     { name: 'My Tasks', view: 'tasks', icon: ClipboardListIcon },
     { name: 'My Documents', view: 'documents', icon: DocumentIcon },
+    { name: 'My Profile', view: 'profile', icon: UserCircleIcon },
 ];
 
 const navItemsMap = {

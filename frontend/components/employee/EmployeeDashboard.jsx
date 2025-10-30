@@ -8,6 +8,7 @@ import Footer from '../shared/Footer';
 import EmployeeHome from './EmployeeHome'; // <-- IMPORTED
 import MyTasks from './MyTasks';
 import MyDocuments from './MyDocuments';
+import EmployeeProfile from './EmployeeProfile';
 
 export const EmployeeDashboard = () => {
   const [currentView, setCurrentView] = useState('dashboard'); // <-- CHANGED DEFAULT
@@ -21,7 +22,9 @@ export const EmployeeDashboard = () => {
         return <MyTasks />;
       case 'documents':
         return <MyDocuments />;
-      case 'dashboard': // <-- ADDED CASE
+      case 'profile':
+        return <EmployeeProfile />;
+      case 'dashboard':
       default:
         return <EmployeeHome setView={setCurrentView} />; // <-- Pass setView
     }

@@ -59,6 +59,9 @@ class UserSerializer(serializers.ModelSerializer):
     )
     # Add department field if applicable for reading/writing
     department = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    education = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    work_history = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = User
@@ -66,7 +69,8 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'role', 'expertise', 'experience', # Trainer fields
             'phone', 'access_expiry_date', # Trainer field
             'assigned_materials', 'assigned_assessments', 'batches', # Student fields
-            'department', # <-- Added Employee field
+            'department',
+            'bio', 'education', 'work_history',
             'name', 'full_name', 'resume', # Common/multiple roles
             'must_change_password' # Common
         )
@@ -76,6 +80,9 @@ class UserSerializer(serializers.ModelSerializer):
             'expertise': {'required': False, 'allow_blank': True, 'allow_null': True},
             'experience': {'required': False, 'allow_null': True},
             'batches': {'required': False},
+            'bio': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'education': {'required': False, 'allow_blank': True, 'allow_null': True},
+            'work_history': {'required': False, 'allow_blank': True, 'allow_null': True},
             'assigned_materials': {'read_only': True}, # Usually assigned via specific actions
             'assigned_assessments': {'read_only': True}, # Usually assigned via specific actions
         }
@@ -160,8 +167,16 @@ class EmployeeDocumentSerializer(serializers.ModelSerializer):
     def get_document_url(self, obj):
         request = self.context.get('request')
         if obj.document and request:
-            # Generate absolute URL for the document file
-            return request.build_absolute_uri(obj.document.url)
+            # Use the custom view action URL
+            try:
+                # Dynamically get the URL from the 'employee-document-view-document' route
+                from django.urls import reverse
+                url = reverse('employee-document-view-document', kwargs={'pk': obj.pk})
+                return request.build_absolute_uri(url)
+            except Exception as e:
+                # Fallback to direct media URL (less secure, but works if view action fails)
+                if obj.document.url:
+                    return request.build_absolute_uri(obj.document.url)
         return None
 
     def get_filename(self, obj):

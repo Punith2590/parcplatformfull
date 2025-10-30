@@ -238,16 +238,36 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated] # Base permission
     queryset = User.objects.all()
     serializer_class = UserSerializer
+      
+    def get_serializer_context(self):
+        # Pass request to serializer context (useful for UserSerializer if it needs it)
+        context = super().get_serializer_context()
+        context.update({"request": self.request})
+        return context
 
-    # Add Admin-only permission for listing/creating/deleting users if needed
-    # def get_permissions(self):
-    #     if self.action in ['list', 'create', 'destroy']:
-    #         # Only Admins can do these actions on the general user list
-    #         if self.request.user.role == 'ADMIN' or self.request.user.is_staff:
-    #              return [IsAuthenticated()]
-    #         else:
-    #              return [permissions.DenyAll()] # Or adjust as needed
-    #     return super().get_permissions()
+    # --- ADD/OVERRIDE perform_update ---
+    def perform_update(self, serializer):
+        user = self.request.user
+        instance = self.get_object()
+
+        # Allow Admin/Staff to update anyone
+        # Allow any authenticated user to update *only themselves*
+        if user.role == 'ADMIN' or user.is_staff or instance.id == user.id:
+            # Prevent non-admins from changing their own role
+            if (user.role != 'ADMIN' and not user.is_staff) and 'role' in serializer.validated_data:
+                if serializer.validated_data['role'] != instance.role:
+                    raise PermissionDenied("You do not have permission to change your role.")
+            
+            # Special handling for 'name' field from serializer
+            full_name = serializer.validated_data.pop('name', None)
+            if full_name:
+                name_parts = full_name.split(" ", 1)
+                serializer.validated_data['first_name'] = name_parts[0]
+                serializer.validated_data['last_name'] = name_parts[1] if len(name_parts) > 1 else ""
+
+            serializer.save()
+        else:
+            raise PermissionDenied("You do not have permission to update this user.")
 
     @action(detail=True, methods=['get'])
     def view_resume(self, request, pk=None):
