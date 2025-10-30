@@ -1,26 +1,29 @@
 // frontend/components/employee/EmployeeDashboard.jsx
 
 import React, { useState } from 'react';
-import { Role } from '../../types'; // Ensure Role includes EMPLOYEE
+import { Role } from '../../types';
 import Sidebar from '../shared/Sidebar';
 import Header from '../shared/Header';
 import Footer from '../shared/Footer';
-import MyTasks from './MyTasks'; // Component for managing tasks
+import EmployeeHome from './EmployeeHome'; // <-- IMPORTED
+import MyTasks from './MyTasks';
 import MyDocuments from './MyDocuments';
 
 export const EmployeeDashboard = () => {
-  const [currentView, setCurrentView] = useState('tasks'); // Default view
+  const [currentView, setCurrentView] = useState('dashboard'); // <-- CHANGED DEFAULT
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   const renderView = () => {
     switch (currentView) {
+      case 'tasks':
+        return <MyTasks />;
       case 'documents':
         return <MyDocuments />;
-      case 'tasks':
+      case 'dashboard': // <-- ADDED CASE
       default:
-        return <MyTasks />;
+        return <EmployeeHome setView={setCurrentView} />; // <-- Pass setView
     }
   };
 

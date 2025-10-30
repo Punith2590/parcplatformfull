@@ -5,7 +5,8 @@ import {
     PygenicArcLogo, DashboardIcon, UserCheckIcon, BookOpenIcon,
     CalendarIcon, ChartBarIcon, UsersIcon, AcademicCapIcon,
     TrophyIcon, ClipboardListIcon, CurrencyDollarIcon, StudentsIcon,
-    GraduationCapIcon, CollectionIcon, BriefcaseIcon, ClipboardDocumentListIcon, DocumentIcon
+    GraduationCapIcon, CollectionIcon, BriefcaseIcon, ClipboardDocumentListIcon,
+    DocumentIcon
 } from '../icons/Icons';
 import { Role } from '../../types';
 
@@ -45,10 +46,10 @@ const studentNavItems = [
 
 // Employee items
 const employeeNavItems = [
+    { name: 'Dashboard', view: 'dashboard', icon: DashboardIcon }, // <-- ADDED
     { name: 'My Tasks', view: 'tasks', icon: ClipboardListIcon },
     { name: 'My Documents', view: 'documents', icon: DocumentIcon },
 ];
-
 
 const navItemsMap = {
   [Role.ADMIN]: adminNavItems,
@@ -56,7 +57,6 @@ const navItemsMap = {
   [Role.STUDENT]: studentNavItems,
   [Role.EMPLOYEE]: employeeNavItems,
 };
-
 
 const Sidebar = ({ currentView, setView, userRole, isSidebarOpen }) => {
   const navItems = navItemsMap[userRole] || [];
@@ -70,7 +70,7 @@ const Sidebar = ({ currentView, setView, userRole, isSidebarOpen }) => {
             <span className="font-bold text-white text-md whitespace-nowrap">PYGENICARC</span>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1" style={{ height: 'calc(100vh - 80px)' }}> {/* Set height for scrolling */}
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1" style={{ height: 'calc(100vh - 80px)' }}>
           {navItems.map((item) => (
             <button
               key={item.name}
