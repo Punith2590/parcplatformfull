@@ -4,12 +4,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
+import { useAuth } from '../../context/AuthContext'; // We get user for role
 import { Role } from '../../types';
 import Spinner from './Spinner';
-import apiClient from '../../api';
+import apiClient from '../../api'; // We use apiClient to fetch
 
-// Configure a singleton PDF.js worker using workerPort so pdf.js doesn't manage/destroy it.
-// This avoids "worker is being destroyed" errors when components mount/unmount rapidly or under React StrictMode.
+// --- Worker setup (no change) ---
 const PDF_WORKER_KEY = '__PDFJS_SINGLETON_WORKER__';
 function getSingletonPdfWorker() {
   if (!globalThis[PDF_WORKER_KEY]) {
@@ -25,42 +25,58 @@ function getSingletonPdfWorker() {
   return globalThis[PDF_WORKER_KEY];
 }
 pdfjs.GlobalWorkerOptions.workerPort = getSingletonPdfWorker();
+// --- End Worker setup ---
 
-const PdfViewer = ({ material, userRole }) => {
+// --- COMPONENT UPDATED ---
+const PdfViewer = ({ fetchUrl, downloadFilename = "document.pdf" }) => {
+  const { user } = useAuth(); // Get user role for download permissions
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [fileBlobUrl, setFileBlobUrl] = useState(null);
-  const requestIdRef = useRef(0);
-  const abortRef = useRef(null);
 
+  const requestIdRef = useRef(0);
   const blobUrlRef = useRef(null);
+
   useEffect(() => {
-    if (!material) return;
+    if (!fetchUrl) {
+      setError("No document URL provided.");
+      setIsLoading(false);
+      return;
+    }
 
     const currentId = ++requestIdRef.current;
     const controller = new AbortController();
-    abortRef.current = controller;
 
     const fetchPdf = async () => {
       setIsLoading(true);
       setError(null);
+      setFileBlobUrl(null); // Clear previous blob
+      if (blobUrlRef.current) {
+         try { URL.revokeObjectURL(blobUrlRef.current); } catch {}
+         blobUrlRef.current = null;
+      }
+
       try {
-        const response = await apiClient.get(`/materials/${material.id}/view_content/`, {
+        const response = await apiClient.get(fetchUrl, { // Use the provided fetchUrl
           responseType: 'blob',
           signal: controller.signal,
         });
-        if (currentId !== requestIdRef.current) return; // stale response
+
+        if (currentId !== requestIdRef.current) return; // Stale response
+
         const file = new Blob([response.data], { type: response.headers['content-type'] });
         const objectUrl = URL.createObjectURL(file);
-        blobUrlRef.current = objectUrl;
+        
+        blobUrlRef.current = objectUrl; // Store blob for cleanup
         setPageNumber(1);
-        setFileBlobUrl(objectUrl);
+        setFileBlobUrl(objectUrl); // Set blob for <Document>
+
       } catch (err) {
-        if (controller.signal.aborted) return; // ignore aborted fetch
+        if (controller.signal.aborted) return; // Ignore aborted fetch
         console.error("Failed to fetch PDF:", err);
-        setError("Could not load the document.");
+        setError("Could not load the document. It may not be a PDF or an error occurred.");
         setIsLoading(false);
       }
     };
@@ -68,11 +84,11 @@ const PdfViewer = ({ material, userRole }) => {
     fetchPdf();
 
     return () => {
-      try { controller.abort(); } catch {}
+      controller.abort();
     };
-  }, [material]);
+  }, [fetchUrl]); // Re-fetch only when the URL changes
 
-  // Revoke blob URL only when component unmounts to avoid interrupting pdf.js tasks
+  // Revoke blob URL only when component unmounts
   useEffect(() => {
     return () => {
       if (blobUrlRef.current) {
@@ -89,7 +105,7 @@ const PdfViewer = ({ material, userRole }) => {
 
   function onDocumentLoadError(error) {
     console.error('Error while loading PDF with react-pdf:', error);
-    setError('Failed to render PDF file.');
+    setError('Failed to render PDF file. Is this a valid PDF?');
     setIsLoading(false);
   }
 
@@ -112,25 +128,27 @@ const PdfViewer = ({ material, userRole }) => {
                 <button onClick={goToPrevPage} disabled={pageNumber <= 1} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50 text-sm">Prev</button>
                 <p className="text-sm">Page {pageNumber} of {numPages || '...'}</p>
                 <button onClick={goToNextPage} disabled={!numPages || pageNumber >= numPages} className="px-3 py-1 bg-white border rounded-md disabled:opacity-50 text-sm">Next</button>
-                {userRole === Role.ADMIN && (
-                    <a href={fileBlobUrl} download={material.title || 'document.pdf'} className="px-3 py-1 bg-violet-600 text-white rounded-md hover:bg-violet-700 text-sm">Download</a>
+                {/* Admin can download anything */}
+                {user?.role === Role.ADMIN && (
+                    <a href={fileBlobUrl} download={downloadFilename} className="px-3 py-1 bg-violet-600 text-white rounded-md hover:bg-violet-700 text-sm">Download</a>
                 )}
             </div>
-      <div 
+            <div 
               className="max-h-[60vh] overflow-auto flex justify-center border bg-slate-50" 
-              onContextMenu={(e) => e.preventDefault()}
+              // Prevent context menu (right-click) for non-admins
+              onContextMenu={(e) => { if(user?.role !== Role.ADMIN) e.preventDefault(); }}
             >
-        <Document
-          key={fileBlobUrl}
-          file={fileBlobUrl}
+                <Document
+                    key={fileBlobUrl}
+                    file={fileBlobUrl}
                     onLoadSuccess={onDocumentLoadSuccess}
                     onLoadError={onDocumentLoadError}
                     loading={<Spinner />}
-                    className="prevent-print"
+                    className="prevent-print" // This class prevents printing
                 >
-          {numPages ? (
-            <Page pageNumber={pageNumber} />
-          ) : null}
+                    {numPages ? (
+                        <Page pageNumber={pageNumber} />
+                    ) : null}
                 </Document>
             </div>
         </>
@@ -141,6 +159,12 @@ const PdfViewer = ({ material, userRole }) => {
                 display: none;
             }
         }
+        /* Simple protection against right-click save for non-admins */
+        ${user?.role !== Role.ADMIN ? `
+        .prevent-print video, .prevent-print img {
+            pointer-events: none;
+        }
+        ` : ''}
       `}</style>
     </div>
   );

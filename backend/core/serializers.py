@@ -5,7 +5,8 @@ from rest_framework import serializers
 from .models import (
     Batch, Module, StudentAttempt, User, College, Material, Schedule,
     TrainerApplication, EmployeeApplication, Task, # <-- Added EmployeeApplication, Task
-    Expense, Bill, Assessment, Course, EmployeeDocument
+    Expense, Bill, Assessment, Course, EmployeeDocument, EducationEntry, 
+    WorkExperienceEntry, Certification
 )
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.db import IntegrityError, transaction
@@ -19,6 +20,7 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         token['username'] = user.username
         token['role'] = user.role
+        token['user_id'] = user.id
         token['name'] = user.get_full_name
         token['must_change_password'] = user.must_change_password
 
@@ -49,6 +51,59 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Add EMPLOYEE specific validation if needed later
 
         return data
+    
+class EducationEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EducationEntry
+        fields = [
+            'id', 'employee', 'title', 'institute', 'location', 
+            'start_date', 'end_date', 'currently_ongoing', 
+            'website', 'academic_performance'
+        ]
+        read_only_fields = ['employee']
+
+class WorkExperienceEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkExperienceEntry
+        fields = [
+            'id', 'employee', 'title', 'institute', 'location', 'website',
+            'start_date', 'end_date', 'currently_ongoing', 'description'
+        ]
+        read_only_fields = ['employee']
+
+class CertificationSerializer(serializers.ModelSerializer):
+    certificate_url = serializers.SerializerMethodField()
+    filename = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Certification
+        fields = [
+            'id', 'employee', 'title', 'institute', 'location', 'website',
+            'start_date', 'end_date', 'currently_ongoing', 'description',
+            'certificate_file', 'certificate_url', 'filename' # Added file fields
+        ]
+        read_only_fields = ['employee', 'certificate_url', 'filename']
+        extra_kwargs = {
+            'certificate_file': {'write_only': True, 'required': False} # File is optional
+        }
+
+    def get_certificate_url(self, obj):
+        request = self.context.get('request')
+        if obj.certificate_file and request:
+            try:
+                from django.urls import reverse
+                # We will create this view action in views.py
+                url = reverse('certification-view-certificate', kwargs={'pk': obj.pk})
+                return request.build_absolute_uri(url)
+            except Exception:
+                if obj.certificate_file.url:
+                    return request.build_absolute_uri(obj.certificate_file.url)
+        return None
+
+    def get_filename(self, obj):
+        if obj.certificate_file:
+            return os.path.basename(obj.certificate_file.name)
+        return None
 
 class UserSerializer(serializers.ModelSerializer):
     name = serializers.CharField(write_only=True, required=True)
@@ -60,8 +115,9 @@ class UserSerializer(serializers.ModelSerializer):
     # Add department field if applicable for reading/writing
     department = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     bio = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    education = serializers.CharField(required=False, allow_blank=True, allow_null=True)
-    work_history = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    education_entries = EducationEntrySerializer(many=True, read_only=True)
+    work_experience_entries = WorkExperienceEntrySerializer(many=True, read_only=True)
+    certification_entries = CertificationSerializer(many=True, read_only=True)
 
     class Meta:
         model = User
@@ -69,10 +125,8 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'role', 'expertise', 'experience', # Trainer fields
             'phone', 'access_expiry_date', # Trainer field
             'assigned_materials', 'assigned_assessments', 'batches', # Student fields
-            'department',
-            'bio', 'education', 'work_history',
-            'name', 'full_name', 'resume', # Common/multiple roles
-            'must_change_password' # Common
+            'department', 'bio', 'education_entries', 'work_experience_entries', 'certification_entries',
+            'name', 'full_name', 'resume', 'must_change_password'
         )
         extra_kwargs = {
             'email': {'required': True},
@@ -81,8 +135,6 @@ class UserSerializer(serializers.ModelSerializer):
             'experience': {'required': False, 'allow_null': True},
             'batches': {'required': False},
             'bio': {'required': False, 'allow_blank': True, 'allow_null': True},
-            'education': {'required': False, 'allow_blank': True, 'allow_null': True},
-            'work_history': {'required': False, 'allow_blank': True, 'allow_null': True},
             'assigned_materials': {'read_only': True}, # Usually assigned via specific actions
             'assigned_assessments': {'read_only': True}, # Usually assigned via specific actions
         }

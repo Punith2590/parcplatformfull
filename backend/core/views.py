@@ -15,13 +15,15 @@ from django.core.exceptions import ValidationError
 from .models import (
     User, College, Material, Schedule, TrainerApplication, Bill,
     Assessment, StudentAttempt, Course, Batch, Module,
-    EmployeeApplication, Task, EmployeeDocument
+    EmployeeApplication, Task, EmployeeDocument, EducationEntry, 
+    WorkExperienceEntry, Certification
 )
 from .serializers import (
     UserSerializer, CollegeSerializer, MaterialSerializer,
     ScheduleSerializer, MyTokenObtainPairSerializer, TrainerApplicationSerializer,
     BillSerializer, AssessmentSerializer, StudentAttemptSerializer, CourseSerializer, BatchSerializer, ModuleSerializer,
-    EmployeeApplicationSerializer, TaskSerializer, EmployeeDocumentSerializer
+    EmployeeApplicationSerializer, TaskSerializer, EmployeeDocumentSerializer, EducationEntrySerializer, 
+    WorkExperienceEntrySerializer, CertificationSerializer
 )
 import secrets, os
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -73,7 +75,9 @@ class TrainerApplicationViewSet(viewsets.ModelViewSet):
                 'role': 'TRAINER',                           # Set Role
                 'is_active': False, # Trainers activated upon scheduling
                 'resume': application.resume,
-                'must_change_password': True # Trainers also need to change password initially
+                # Trainers will receive credentials when assigned a schedule. We do not force them to change
+                # the temporary password on first login so they can access the system until their access expires.
+                'must_change_password': False
             }
         )
 
@@ -245,20 +249,15 @@ class UserViewSet(viewsets.ModelViewSet):
         context.update({"request": self.request})
         return context
 
-    # --- ADD/OVERRIDE perform_update ---
     def perform_update(self, serializer):
         user = self.request.user
         instance = self.get_object()
 
-        # Allow Admin/Staff to update anyone
-        # Allow any authenticated user to update *only themselves*
         if user.role == 'ADMIN' or user.is_staff or instance.id == user.id:
-            # Prevent non-admins from changing their own role
             if (user.role != 'ADMIN' and not user.is_staff) and 'role' in serializer.validated_data:
                 if serializer.validated_data['role'] != instance.role:
                     raise PermissionDenied("You do not have permission to change your role.")
             
-            # Special handling for 'name' field from serializer
             full_name = serializer.validated_data.pop('name', None)
             if full_name:
                 name_parts = full_name.split(" ", 1)
@@ -426,6 +425,142 @@ class EmployeeDocumentViewSet(viewsets.ModelViewSet):
             content_type = content_type or 'application/octet-stream'
             # Use 'inline' to try opening in browser, 'attachment' to force download
             response = FileResponse(f, content_type=content_type)
+            response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_field.name)}"'
+            return response
+        except FileNotFoundError:
+             return Response({'detail': 'File not found on server.'}, status=status.HTTP_404_NOT_FOUND)
+        
+class EducationEntryViewSet(viewsets.ModelViewSet):
+    serializer_class = EducationEntrySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'ADMIN' or user.is_staff:
+            # Admins can see all education entries (e.g., for user management)
+            return EducationEntry.objects.all().select_related('employee')
+        elif user.role == 'EMPLOYEE':
+            # Employees see only their own
+            return EducationEntry.objects.filter(employee=user)
+        return EducationEntry.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role == 'EMPLOYEE':
+            serializer.save(employee=user)
+        else:
+            # Admins could potentially create entries *for* employees
+            # For now, let's restrict creation to employees themselves
+            raise PermissionDenied("Only employees can add education entries to their own profile.")
+
+    def perform_update(self, serializer):
+        entry = self.get_object()
+        user = self.request.user
+        # Allow employee to update their own entry, or Admin to update any
+        if entry.employee == user or user.role == 'ADMIN' or user.is_staff:
+            serializer.save()
+        else:
+            raise PermissionDenied("You do not have permission to update this entry.")
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        # Allow employee to delete their own entry, or Admin to delete any
+        if instance.employee == user or user.role == 'ADMIN' or user.is_staff:
+            instance.delete()
+        else:
+            raise PermissionDenied("You do not have permission to delete this document.")
+
+class WorkExperienceEntryViewSet(viewsets.ModelViewSet):
+    serializer_class = WorkExperienceEntrySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'ADMIN' or user.is_staff:
+            return WorkExperienceEntry.objects.all().select_related('employee')
+        elif user.role == 'EMPLOYEE':
+            return WorkExperienceEntry.objects.filter(employee=user)
+        return WorkExperienceEntry.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role == 'EMPLOYEE':
+            serializer.save(employee=user)
+        else:
+            raise PermissionDenied("Only employees can add work experience to their own profile.")
+
+    def perform_update(self, serializer):
+        entry = self.get_object()
+        user = self.request.user
+        if entry.employee == user or user.role == 'ADMIN' or user.is_staff:
+            serializer.save()
+        else:
+            raise PermissionDenied("You do not have permission to update this entry.")
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if instance.employee == user or user.role == 'ADMIN' or user.is_staff:
+            instance.delete()
+        else:
+            raise PermissionDenied("You do not have permission to delete this entry.")
+
+class CertificationViewSet(viewsets.ModelViewSet):
+    serializer_class = CertificationSerializer
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser) # For file upload
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'ADMIN' or user.is_staff:
+            return Certification.objects.all().select_related('employee')
+        elif user.role == 'EMPLOYEE':
+            return Certification.objects.filter(employee=user)
+        return Certification.objects.none()
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update({"request": self.request})
+        return context
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user.role == 'EMPLOYEE':
+            serializer.save(employee=user)
+        else:
+            raise PermissionDenied("Only employees can add certifications to their own profile.")
+
+    def perform_update(self, serializer):
+        entry = self.get_object()
+        user = self.request.user
+        if entry.employee == user or user.role == 'ADMIN' or user.is_staff:
+            serializer.save()
+        else:
+            raise PermissionDenied("You do not have permission to update this entry.")
+
+    def perform_destroy(self, instance):
+        user = self.request.user
+        if instance.employee == user or user.role == 'ADMIN' or user.is_staff:
+            # Delete the associated file from storage
+            if instance.certificate_file:
+                instance.certificate_file.delete(save=False)
+            instance.delete()
+        else:
+            raise PermissionDenied("You do not have permission to delete this entry.")
+
+    @action(detail=True, methods=['get'])
+    def view_certificate(self, request, pk=None):
+        doc = self.get_object()
+        user = request.user
+        
+        if not (user.role == 'ADMIN' or user.is_staff or doc.employee == user):
+             raise PermissionDenied("You do not have permission to view this certificate.")
+        
+        file_field = doc.certificate_file
+        if not file_field:
+             return Response({'detail': 'No file found for this certificate.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            response = FileResponse(file_field.open('rb'), as_attachment=False)
             response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_field.name)}"'
             return response
         except FileNotFoundError:
@@ -780,7 +915,8 @@ class ScheduleViewSet(viewsets.ModelViewSet):
             temp_password = secrets.token_urlsafe(8)
             trainer.set_password(temp_password)
             trainer.is_active = True
-            trainer.must_change_password = True # Force change even if previously active but expired
+            # Do not force trainers to change their password when credentials are issued/reset.
+            trainer.must_change_password = False
             password_changed = True
 
         if latest_schedule:
@@ -795,7 +931,7 @@ class ScheduleViewSet(viewsets.ModelViewSet):
                 send_mail(
                     'Your Parc Platform Login Credentials & Schedule Update',
                     f'Hi {trainer.first_name},\n\nYou have been assigned to a new schedule or your access needed reactivation. '
-                    'Please use the following temporary credentials to log in. You will be required to change your password.\n\n'
+                    'Please use the following temporary credentials to log in. You may change your password after logging in if you wish.\n\n'
                     f'Username: {trainer.email}\n'
                     f'Password: {temp_password}\n\n'
                     f'Your access will be valid until: {trainer.access_expiry_date.strftime("%Y-%m-%d %H:%M")}\n\n'

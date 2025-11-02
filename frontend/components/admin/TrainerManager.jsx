@@ -6,11 +6,14 @@ import { Role } from '../../types';
 import Modal from '../shared/Modal';
 import { PencilIcon, XIcon, EyeIcon } from '../icons/Icons';
 import apiClient from '../../api';
+import MaterialViewerModal from '../shared/MaterialViewerModal';
 
 const TrainerManager = () => {
   const { trainers, addUser, updateUser, deleteUser, globalSearchTerm } = useData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTrainer, setEditingTrainer] = useState(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [itemForViewer, setItemForViewer] = useState(null);
   
   const getInitialTrainerState = () => ({
     name: '', email: '', phone: '', expertise: '', experience: 0,
@@ -68,22 +71,20 @@ const TrainerManager = () => {
     }
   };
 
-  const handleViewResume = async (trainer) => {
+  const handleViewResume = (trainer) => {
     if (!trainer.resume) {
       alert("No resume found for this trainer.");
       return;
     }
-    try {
-        const response = await apiClient.get(`/users/${trainer.id}/view_resume/`, {
-            responseType: 'blob', // Important to handle the file download
-        });
-        const file = new Blob([response.data], { type: 'application/pdf' });
-        const fileURL = URL.createObjectURL(file);
-        window.open(fileURL, '_blank');
-    } catch (error) {
-        console.error("Failed to fetch resume:", error);
-        alert("Could not open resume. The file may be missing or there was a server error.");
-    }
+    // Set the item for the modal
+    setItemForViewer({
+        title: `${trainer.full_name}'s Resume`,
+        type: 'PDF', // Assume resumes are PDFs or compatible
+        url: `/users/${trainer.id}/view_resume/`, // Use the USER endpoint
+        filename: `${trainer.full_name}-resume.pdf`
+    });
+    // Open the modal
+    setIsViewerOpen(true);
   };
   
   const handleCopyLink = () => {
@@ -144,9 +145,11 @@ const TrainerManager = () => {
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{trainer.expertise}</td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{trainer.experience} years</td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                        <button onClick={() => handleViewResume(trainer)} className="p-2 text-slate-500 hover:text-slate-800 rounded-md bg-slate-100 hover:bg-slate-200" title="View Resume">
-                            <EyeIcon className="w-4 h-4" />
-                        </button>
+                        {trainer.resume && (
+                            <button onClick={() => handleViewResume(trainer)} className="p-2 text-slate-500 hover:text-slate-800 rounded-md bg-slate-100 hover:bg-slate-200" title="View Resume">
+                                <EyeIcon className="w-4 h-4" />
+                            </button>
+                        )}
                         <button onClick={() => handleOpenModal(trainer)} className="p-2 text-blue-500 hover:text-blue-800 rounded-md bg-blue-100 hover:bg-blue-200" title="Edit Trainer">
                             <PencilIcon className="w-4 h-4" />
                         </button>
@@ -194,6 +197,11 @@ const TrainerManager = () => {
           </div>
         </form>
       </Modal>
+      <MaterialViewerModal
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        item={itemForViewer}
+      />
     </div>
   );
 };

@@ -6,7 +6,8 @@ from .views import (
     UserViewSet, CollegeViewSet, MaterialViewSet, ScheduleViewSet,
     TrainerApplicationViewSet, BillViewSet, AssessmentViewSet, StudentAttemptViewSet, ReportingDashboardView,
     CourseViewSet, BatchViewSet, SetPasswordView, ModuleViewSet,
-    EmployeeApplicationViewSet, TaskViewSet, EmployeeDocumentViewSet
+    EmployeeApplicationViewSet, TaskViewSet, EmployeeDocumentViewSet, EducationEntryViewSet, 
+    WorkExperienceEntryViewSet, CertificationViewSet
 )
 
 router = DefaultRouter()
@@ -24,6 +25,9 @@ router.register(r'batches', BatchViewSet, basename='batch')
 router.register(r'modules', ModuleViewSet, basename='module')
 router.register(r'tasks', TaskViewSet, basename='task')
 router.register(r'employee-documents', EmployeeDocumentViewSet, basename='employee-document')
+router.register(r'education-entries', EducationEntryViewSet, basename='education-entry')
+router.register(r'work-experience-entries', WorkExperienceEntryViewSet, basename='work-experience-entry')
+router.register(r'certification-entries', CertificationViewSet, basename='certification')
 
 urlpatterns = [
     path('', include(router.urls)),

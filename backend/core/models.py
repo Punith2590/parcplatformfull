@@ -26,13 +26,54 @@ class User(AbstractUser):
     must_change_password = models.BooleanField(default=False)
     department = models.CharField(max_length=100, blank=True, null=True)
     bio = models.TextField(blank=True, null=True, help_text="Professional summary or bio")
-    education = models.TextField(blank=True, null=True, help_text="Education, degrees, and certifications")
-    work_history = models.TextField(blank=True, null=True, help_text="Detailed experience, achievements, and work history")
-
     @property
     def get_full_name(self):
         full_name = '%s %s' % (self.first_name, self.last_name)
         return full_name.strip()
+    
+class EducationEntry(models.Model):
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='education_entries', # This related_name is important
+        limit_choices_to={'role': 'EMPLOYEE'}
+    )
+    title = models.CharField(max_length=200, help_text="e.g., B.E. in Computer Science or SSLC")
+    institute = models.CharField(max_length=200, help_text="e.g., K S School Of Engineering And Management")
+    location = models.CharField(max_length=100, blank=True, null=True)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    currently_ongoing = models.BooleanField(default=False)
+    website = models.URLField(max_length=200, blank=True, null=True)
+    academic_performance = models.TextField(blank=True, null=True, help_text="e.g., 7.67 CGPA or 84.96%")
+
+    class Meta:
+        ordering = ['-start_date'] # Show newest education first
+
+    def __str__(self):
+        return f"{self.title} at {self.institute} ({self.employee.username})"
+    
+class WorkExperienceEntry(models.Model):
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='work_experience_entries', # This related_name is important
+        limit_choices_to={'role': 'EMPLOYEE'}
+    )
+    title = models.CharField(max_length=200, help_text="e.g., Software Engineer")
+    institute = models.CharField(max_length=200, help_text="e.g., Google, Microsoft")
+    location = models.CharField(max_length=100, blank=True, null=True)
+    website = models.URLField(max_length=200, blank=True, null=True)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    currently_ongoing = models.BooleanField(default=False)
+    description = models.TextField(blank=True, null=True, help_text="Describe your role, responsibilities, and achievements")
+
+    class Meta:
+        ordering = ['-start_date'] # Show newest experience first
+
+    def __str__(self):
+        return f"{self.title} at {self.institute} ({self.employee.username})"
 
 class College(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -236,3 +277,30 @@ class EmployeeDocument(models.Model):
         # Return filename if title is empty, otherwise title
         doc_name = self.title or os.path.basename(self.document.name)
         return f"Doc: {doc_name} ({employee_name})"
+    
+def employee_certificate_path(instance, filename):
+    # Store certificates in their own folder
+    return f'employee_certs/{instance.employee.id}/{filename}'
+
+class Certification(models.Model):
+    employee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='certification_entries',
+        limit_choices_to={'role': 'EMPLOYEE'}
+    )
+    title = models.CharField(max_length=200, help_text="e.g., AWS Certified Cloud Practitioner")
+    institute = models.CharField(max_length=200, help_text="e.g., Amazon Web Services")
+    location = models.CharField(max_length=100, blank=True, null=True)
+    website = models.URLField(max_length=200, blank=True, null=True)
+    start_date = models.DateField(help_text="Issue Date") # Re-using start_date as Issue Date
+    end_date = models.DateField(null=True, blank=True, help_text="Expiry Date") # Re-using end_date as Expiry Date
+    currently_ongoing = models.BooleanField(default=False, help_text="Mark if this certification does not expire")
+    description = models.TextField(blank=True, null=True, help_text="Add any other details")
+    certificate_file = models.FileField(upload_to=employee_certificate_path, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-start_date']
+
+    def __str__(self):
+        return f"{self.title} from {self.institute} ({self.employee.username})"

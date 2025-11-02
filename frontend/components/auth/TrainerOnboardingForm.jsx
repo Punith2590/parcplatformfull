@@ -49,7 +49,7 @@ const TrainerOnboardingForm = () => {
     }
     
     try {
-      await axios.post(`${API_URL}/applications/`, submissionData, {
+      await axios.post(`${API_URL}/trainer-applications/`, submissionData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

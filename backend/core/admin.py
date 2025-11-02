@@ -4,7 +4,8 @@ from django.contrib import admin
 from .models import (
     User, College, Material, Schedule, Module, Course, Batch,
     TrainerApplication, EmployeeApplication, Task,
-    Bill, Expense, Assessment, StudentAttempt, EmployeeDocument
+    Bill, Expense, Assessment, StudentAttempt, EmployeeDocument, EducationEntry,
+    WorkExperienceEntry, Certification
 )
 
 # Register your models here to make them appear in the admin site.
@@ -23,3 +24,6 @@ admin.site.register(Expense)
 admin.site.register(Assessment)
 admin.site.register(StudentAttempt)
 admin.site.register(EmployeeDocument)
+admin.site.register(EducationEntry)
+admin.site.register(WorkExperienceEntry)
+admin.site.register(Certification)

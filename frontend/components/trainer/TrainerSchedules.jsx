@@ -7,6 +7,8 @@ import Modal from '../shared/Modal';
 import MaterialViewerModal from '../shared/MaterialViewerModal';
 import { EyeIcon, XIcon, BookOpenIcon } from '../icons/Icons';
 import Calendar from './Calendar';
+import { MaterialType } from '../../types';
+
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
 
@@ -19,7 +21,7 @@ const TrainerSchedules = () => {
 
   // State for the actual viewer modal (all types)
   const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const [materialForViewer, setMaterialForViewer] = useState(null);
+  const [itemForViewer, setItemForViewer] = useState(null);
 
   const mySchedules = useMemo(() => {
     if (!user) return [];
@@ -50,11 +52,23 @@ const TrainerSchedules = () => {
   };
 
   const handleMaterialClick = (material) => {
-    const content = material.type === 'VIDEO'
-      ? (material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`)
-      : material.content;
-    setMaterialForViewer({ ...material, content });
+    let url;
+    if (material.type === MaterialType.VIDEO) {
+      // Videos need the direct file URL
+      url = material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
+    } else {
+      // PDFs/Docs/PPTs need the protected fetch URL
+      url = `/materials/${material.id}/view_content/`;
+    }
+
+    setItemForViewer({
+      title: material.title,
+      type: material.type, // 'PDF', 'VIDEO', etc.
+      url: url,
+      filename: material.title, // For downloads
+    });
     setIsViewerOpen(true);
+    setIsListModalOpen(false); // Close the list modal
   };
   
   const getScheduleHeader = () => {
@@ -151,7 +165,7 @@ const TrainerSchedules = () => {
       <MaterialViewerModal 
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
-        material={materialForViewer}
+        item={itemForViewer} // Pass 'item' prop
       />
     </div>
   );

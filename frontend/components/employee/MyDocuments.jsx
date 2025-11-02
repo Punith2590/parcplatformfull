@@ -6,6 +6,7 @@ import { useData } from '../../context/DataContext';
 // import { useAuth } from '../../context/AuthContext'; 
 import { UploadIcon, DocumentIcon, XIcon, EyeIcon } from '../icons/Icons';
 import Spinner from '../shared/Spinner';
+import MaterialViewerModal from '../shared/MaterialViewerModal';
 
 const MyDocuments = () => {
     // --- FIX: Remove user from useAuth ---
@@ -18,13 +19,10 @@ const MyDocuments = () => {
     const [isDragging, setIsDragging] = useState(false);
     const [loading, setLoading] = useState(false);
     const fileInputRef = useRef(null);
+    const [isViewerOpen, setIsViewerOpen] = useState(false);
+    const [itemForViewer, setItemForViewer] = useState(null);
 
-    // --- FIX: Remove the redundant filter. The context provides the correct list. ---
-    // const myDocs = employeeDocuments.filter(doc => doc.employee === user.user_id);
-    // Use employeeDocuments directly
     const myDocs = Array.isArray(employeeDocuments) ? employeeDocuments : [];
-    // --- END FIX ---
-
 
     const handleFileChange = (selectedFile) => {
         if (selectedFile) {
@@ -74,13 +72,21 @@ const MyDocuments = () => {
         }
     };
 
-    const viewDocument = (docUrl) => {
-        if (docUrl) {
-            window.open(docUrl, '_blank');
+    const viewDocument = (doc) => {
+        if (doc && doc.document_url) {
+            let type = 'PDF';
+            if (doc.filename?.match(/\.(jpg|jpeg|png|gif)$/i)) {
+                type = 'IMAGE';
+            }
+            setItemForViewer({
+                title: doc.title,
+                type: type,
+                url: doc.document_url, // This is the API fetch path
+                filename: doc.filename
+            });
+            setIsViewerOpen(true);
         } else {
-            // Try the v2 endpoint if url isn't in serializer (fallback)
-            // This is less ideal than having document_url in the serializer
-            alert("Document URL not found. It might still be processing or an error occurred.");
+            alert("Document URL not found.");
         }
     };
 
@@ -157,7 +163,11 @@ const MyDocuments = () => {
                                     <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500 hidden sm:table-cell">{doc.filename || 'N/A'}</td>
                                     <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{new Date(doc.uploaded_at).toLocaleDateString()}</td>
                                     <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                                        <button onClick={() => viewDocument(doc.document_url)} className="p-2 text-slate-500 hover:text-slate-800 rounded-md bg-slate-100 hover:bg-slate-200" title="View Document">
+                                        <button 
+                                            onClick={() => viewDocument(doc)} 
+                                            className="p-2 text-slate-500 hover:text-slate-800 rounded-md bg-slate-100 hover:bg-slate-200" 
+                                            title="View Document"
+                                        >
                                             <EyeIcon className="w-4 h-4" />
                                         </button>
                                         <button onClick={() => handleDelete(doc.id)} className="p-2 text-red-500 hover:text-red-800 rounded-md bg-red-100 hover:bg-red-200" title="Delete Document">
@@ -172,11 +182,16 @@ const MyDocuments = () => {
                                     </td>
                                 </tr>
                             )}
-                            {/* --- END FIX --- */}
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            <MaterialViewerModal
+                isOpen={isViewerOpen}
+                onClose={() => setIsViewerOpen(false)}
+                item={itemForViewer}
+            />
         </div>
     );
 };

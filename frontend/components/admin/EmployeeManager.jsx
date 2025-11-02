@@ -4,15 +4,20 @@ import React, { useState, useMemo } from 'react';
 import { useData } from '../../context/DataContext';
 import { Role } from '../../types';
 import Modal from '../shared/Modal';
-import { PencilIcon, XIcon, EyeIcon, BriefcaseIcon, DocumentIcon } from '../icons/Icons'; // <-- ADDED DocumentIcon
+import { PencilIcon, XIcon, EyeIcon, BriefcaseIcon, DocumentIcon, UserCircleIcon } from '../icons/Icons';
 import apiClient from '../../api';
-import EmployeeDocumentsModal from './EmployeeDocumentsModal'; // <-- IMPORT MODAL
+import EmployeeDocumentsModal from './EmployeeDocumentsModal';
+import AdminEmployeeProfileViewModal from './AdminEmployeeProfileViewModal';
+import MaterialViewerModal from '../shared/MaterialViewerModal';
 
 const EmployeeManager = () => {
   const { employees, addUser, updateUser, deleteUser, globalSearchTerm } = useData();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false); // For Edit/Add
   const [editingEmployee, setEditingEmployee] = useState(null);
-  const [viewingDocsEmployeeId, setViewingDocsEmployeeId] = useState(null); // <-- ADDED state for docs modal
+  const [viewingDocsEmployeeId, setViewingDocsEmployeeId] = useState(null);
+  const [viewingProfileEmployee, setViewingProfileEmployee] = useState(null);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [itemForViewer, setItemForViewer] = useState(null);
 
   const getInitialEmployeeState = () => ({
     name: '', email: '', phone: '', department: '',
@@ -67,29 +72,27 @@ const EmployeeManager = () => {
     }
   };
 
-  const handleViewResume = async (employee) => {
+  const handleViewResume = (employee) => {
     if (!employee.resume) {
       alert("No resume found for this employee.");
       return;
     }
-    try {
-        const response = await apiClient.get(`/users/${employee.id}/view_resume/`, {
-            responseType: 'blob',
-        });
-        const file = new Blob([response.data], { type: response.headers['content-type'] || 'application/pdf' });
-        const fileURL = URL.createObjectURL(file);
-        window.open(fileURL, '_blank');
-    } catch (error) {
-        console.error("Failed to fetch resume:", error);
-        alert("Could not open resume.");
-    }
+    setItemForViewer({
+        title: `${employee.full_name}'s Resume`,
+        type: 'PDF', // Resumes are assumed to be PDF
+        url: `/users/${employee.id}/view_resume/`,
+        filename: 'resume.pdf'
+    });
+    setIsViewerOpen(true);
   };
 
-  // --- NEW: Handler to open the documents modal ---
   const handleViewDocuments = (employeeId) => {
       setViewingDocsEmployeeId(employeeId);
   };
-  // --- END NEW ---
+
+  const handleViewProfile = (employee) => {
+      setViewingProfileEmployee(employee);
+  };
 
   const handleCopyLink = () => {
     const onboardingUrl = `${window.location.origin}/employee-onboarding`;
@@ -98,7 +101,6 @@ const EmployeeManager = () => {
   };
 
   const filteredEmployees = useMemo(() => {
-    // Ensure employees is an array
     const employeeList = Array.isArray(employees) ? employees : [];
     if (!globalSearchTerm) return employeeList;
     const lowercasedFilter = globalSearchTerm.toLowerCase();
@@ -112,7 +114,6 @@ const EmployeeManager = () => {
   return (
     <div>
       <div className="flex justify-between items-center gap-4">
-        {/* ... (header remains the same) ... */}
         <div>
           <h1 className="text-3xl font-bold text-pygenic-blue">Employee Management</h1>
           <p className="mt-2 text-slate-600">View and manage all active employees.</p>
@@ -150,7 +151,10 @@ const EmployeeManager = () => {
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{employee.department || 'N/A'}</td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
-                        {/* --- ADDED View Docs Button --- */}
+                        {/* --- ADDED View Profile Button --- */}
+                        <button onClick={() => handleViewProfile(employee)} className="p-2 text-violet-500 hover:text-violet-800 rounded-md bg-violet-100 hover:bg-violet-200" title="View Full Profile">
+                            <UserCircleIcon className="w-4 h-4" />
+                        </button>
                         <button onClick={() => handleViewDocuments(employee.id)} className="p-2 text-green-500 hover:text-green-800 rounded-md bg-green-100 hover:bg-green-200" title="View Documents">
                             <DocumentIcon className="w-4 h-4" />
                         </button>
@@ -182,10 +186,9 @@ const EmployeeManager = () => {
         </div>
       </div>
 
-      {/* Edit/Add Employee Modal */}
+       {/* Edit/Add Employee Modal */}
        <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingEmployee ? "Edit Employee" : "Add New Employee"}>
         <form onSubmit={handleSubmit}>
-          {/* ... (form content remains the same) ... */}
            <div className="space-y-4">
             <div>
               <label htmlFor="name" className={formLabelClasses}>Full Name</label>
@@ -213,7 +216,7 @@ const EmployeeManager = () => {
         </form>
       </Modal>
 
-      {/* --- ADDED Document Viewer Modal --- */}
+      {/* View Documents Modal */}
       {viewingDocsEmployeeId && (
         <EmployeeDocumentsModal
             employeeId={viewingDocsEmployeeId}
@@ -221,7 +224,20 @@ const EmployeeManager = () => {
             onClose={() => setViewingDocsEmployeeId(null)}
         />
       )}
-      {/* --- END ADDED MODAL --- */}
+
+      {/* --- View Profile Modal --- */}
+      {viewingProfileEmployee && (
+        <AdminEmployeeProfileViewModal
+            employee={viewingProfileEmployee}
+            isOpen={!!viewingProfileEmployee}
+            onClose={() => setViewingProfileEmployee(null)}
+        />
+      )}
+      <MaterialViewerModal
+          isOpen={isViewerOpen}
+          onClose={() => setIsViewerOpen(false)}
+          item={itemForViewer}
+      />
 
     </div>
   );

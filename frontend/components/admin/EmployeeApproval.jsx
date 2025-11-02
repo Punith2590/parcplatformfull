@@ -1,19 +1,30 @@
 // frontend/components/admin/EmployeeApproval.jsx
 
-import React from 'react';
+import React, { useState } from 'react'; // <-- THIS IS THE FIX: Added 'useState'
 import { useData } from '../../context/DataContext';
-import apiClient from '../../api';
 import { EyeIcon } from '../icons/Icons';
+import MaterialViewerModal from '../shared/MaterialViewerModal'; // Import the modal
 
 const EmployeeApproval = () => {
-  // Destructure with default value
   const { employeeApplications = [], approveEmployeeApplication, declineEmployeeApplication } = useData();
-  const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api';
+  
+  // --- This line was causing the error without the import ---
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [itemForViewer, setItemForViewer] = useState(null);
+  // ---
 
-  const viewResume = (applicationId) => {
-    // Correct endpoint
-    const resumeUrl = `${API_URL}/employee-applications/${applicationId}/view_resume/`;
-    window.open(resumeUrl, '_blank');
+  const viewResume = (app) => {
+    if (!app.resume) {
+        alert("No resume file found for this application.");
+        return;
+    }
+    setItemForViewer({
+        title: `${app.name}'s Resume`,
+        type: 'PDF', // Assume resumes are PDFs or compatible
+        url: `/employee-applications/${app.id}/view_resume/`, // This is the relative API path
+        filename: `${app.name}-resume.pdf`
+    });
+    setIsViewerOpen(true);
   };
 
   return (
@@ -23,11 +34,10 @@ const EmployeeApproval = () => {
 
       <div className="mt-8 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
+          <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:-mx-8">
             <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 sm:rounded-lg border">
               <table className="min-w-full divide-y divide-slate-200">
                 <thead className="bg-slate-50">
-                  {/* ... (table headers remain the same) ... */}
                    <tr>
                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Name</th>
                     <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Contact</th>
@@ -38,11 +48,9 @@ const EmployeeApproval = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 bg-white">
-                  {/* Check if employeeApplications is an array before mapping */}
                   {Array.isArray(employeeApplications) && employeeApplications.length > 0 ? (
                     employeeApplications.map((app) => (
                       <tr key={app.id} className="hover:bg-slate-50 transition-colors">
-                        {/* ... (table data cells remain the same) ... */}
                         <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{app.name}</td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                             <div>{app.email}</div>
@@ -52,8 +60,8 @@ const EmployeeApproval = () => {
                         <td className="px-3 py-4 text-sm text-slate-500 max-w-xs truncate">{app.skills || 'N/A'}</td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                             {app.resume ? (
-                                <button onClick={() => viewResume(app.id)} className="flex items-center gap-1 text-slate-600 hover:text-violet-600">
-                                <EyeIcon className="w-4 h-4" /> View
+                                <button onClick={() => viewResume(app)} className="flex items-center gap-1 text-slate-600 hover:text-violet-600">
+                                   <EyeIcon className="w-4 h-4" /> View
                                 </button>
                             ) : (
                                 'N/A'
@@ -78,7 +86,6 @@ const EmployeeApproval = () => {
                   ) : (
                     <tr>
                       <td colSpan={6} className="text-center py-10 text-slate-500">
-                        {/* More specific message */}
                         {Array.isArray(employeeApplications) ? 'No pending employee applications.' : 'Loading applications...'}
                       </td>
                     </tr>
@@ -89,6 +96,12 @@ const EmployeeApproval = () => {
           </div>
         </div>
       </div>
+
+      <MaterialViewerModal
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        item={itemForViewer}
+      />
     </div>
   );
 };

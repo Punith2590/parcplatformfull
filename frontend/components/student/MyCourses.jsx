@@ -1,9 +1,10 @@
 // frontend/components/student/MyCourses.jsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
-import MaterialViewer from '../shared/MaterialViewer';
+import PdfViewer from '../shared/PdfViewer';
+import { MaterialType, Role } from '../../types';
 import { ChevronUpIcon, BookOpenIcon } from '../icons/Icons';
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
@@ -12,22 +13,22 @@ const BACKEND_URL = import.meta.env.VITE_API_BASE_URL.replace('/api', '');
 // ## COURSE DETAIL VIEW COMPONENT
 // ####################################################################
 const CourseDetailView = ({ course, onBack }) => {
+    const { user } = useAuth();
     const [selectedMaterial, setSelectedMaterial] = useState(null);
     const [openModuleId, setOpenModuleId] = useState(null);
 
-    // Effect to set the initial material when the component loads
-    useMemo(() => {
+    // Set the initial material when component mounts
+    useEffect(() => {
         if (!selectedMaterial && course.modules?.length > 0 && course.modules[0].materials?.length > 0) {
             const firstMaterial = course.modules[0].materials[0];
-            const contentUrl = firstMaterial.content?.startsWith('http') ? firstMaterial.content : `${BACKEND_URL}${firstMaterial.content}`;
-            setSelectedMaterial({ ...firstMaterial, content: contentUrl });
+            setSelectedMaterial(firstMaterial);
             setOpenModuleId(course.modules[0].id);
         }
-    }, [course, selectedMaterial]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [course]);
 
     const handleSelectMaterial = (material) => {
-        const contentUrl = material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
-        setSelectedMaterial({ ...material, content: contentUrl });
+        setSelectedMaterial(material);
     };
 
     const toggleModule = (moduleId) => {
@@ -38,12 +39,87 @@ const CourseDetailView = ({ course, onBack }) => {
         <div>
             <button onClick={onBack} className="text-sm font-medium text-violet-600 hover:underline mb-4">&larr; Back to All Courses</button>
             <div className="flex flex-col lg:flex-row gap-6">
-                {/* Left Column: Material Viewer */}
+                {/* Left Column: Material Viewer (opens modal) */}
                 <div className="w-full lg:w-2/3">
                     <h1 className="text-3xl font-bold text-slate-800 mb-1">{course.name}</h1>
                     <p className="text-slate-500 mb-4">Viewing: {selectedMaterial?.title || 'Select a lesson'}</p>
                     <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                        <MaterialViewer material={selectedMaterial} />
+                        {/* Inline viewer for MyCourses: VIDEO, PDF (via PdfViewer), images or fallback */}
+                        {!selectedMaterial && (
+                            <div className="py-16 text-center text-slate-400">No material selected</div>
+                        )}
+
+                        {selectedMaterial && (
+                            (() => {
+                                const mat = selectedMaterial;
+                                const type = mat.type;
+
+                                // Helper to create secure fetch URL for non-video types
+                                const secureFetchUrl = `/materials/${mat.id}/view_content/`;
+
+                                if (type === MaterialType.VIDEO) {
+                                    const videoSrc = mat.content?.startsWith('http') ? mat.content : `${BACKEND_URL}${mat.content}`;
+                                    return (
+                                        <div className="aspect-video bg-black rounded-lg overflow-hidden">
+                                            <video controls src={videoSrc} className="w-full h-full" autoPlay>
+                                                Your browser does not support the video tag.
+                                            </video>
+                                        </div>
+                                    );
+                                }
+
+                                if (type === MaterialType.PDF) {
+                                    return <PdfViewer fetchUrl={secureFetchUrl} downloadFilename={mat.title} />;
+                                }
+
+                                if (type === MaterialType.DOC || type === MaterialType.PPT) {
+                                    return (
+                                        <div className="text-center p-8 bg-slate-50 rounded-lg">
+                                            <h3 className="font-bold text-lg mb-2">Preview not supported for this file type.</h3>
+                                            {user?.role === Role.ADMIN ? (
+                                                <a
+                                                    href={secureFetchUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    download
+                                                    className="px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-violet-600 to-indigo-600 rounded-lg shadow-md hover:from-violet-700 hover:to-indigo-700"
+                                                >
+                                                    Download File
+                                                </a>
+                                            ) : (
+                                                <p className="text-slate-500">Ask an admin for a PDF version or access.</p>
+                                            )}
+                                        </div>
+                                    );
+                                }
+
+                                // Image preview
+                                const urlLower = (mat.content || '').toLowerCase();
+                                if (urlLower.endsWith('.jpg') || urlLower.endsWith('.jpeg') || urlLower.endsWith('.png') || urlLower.endsWith('.gif')) {
+                                    const imgSrc = mat.content?.startsWith('http') ? mat.content : `${BACKEND_URL}${mat.content}`;
+                                    return (
+                                        <div className="max-h-[70vh] overflow-auto flex justify-center bg-slate-100">
+                                            <img src={imgSrc} alt={mat.title} className="max-w-full max-h-full object-contain" />
+                                        </div>
+                                    );
+                                }
+
+                                // Fallback
+                                return (
+                                    <div className="text-center p-8">
+                                        <p className="mb-4">This file type ({type}) is not supported for in-app viewing.</p>
+                                        <a
+                                            href={secureFetchUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="px-4 py-2 bg-violet-600 text-white rounded-md hover:bg-violet-700 text-sm font-semibold"
+                                        >
+                                            Try to Open in New Tab
+                                        </a>
+                                    </div>
+                                );
+                            })()
+                        )}
                     </div>
                 </div>
 
@@ -90,6 +166,7 @@ const MyCourses = () => {
     const { user } = useAuth();
     const { courses, batches } = useData();
     const [selectedCourse, setSelectedCourse] = useState(null);
+    // Inline viewer only for MyCourses; no modal required here.
 
     const myCourses = useMemo(() => {
         if (!user || !courses.length || !batches.length) return [];

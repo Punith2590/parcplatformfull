@@ -50,7 +50,7 @@ const TrainerMaterialManager = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMaterial, setEditingMaterial] = useState(null);
     const [isViewerOpen, setIsViewerOpen] = useState(false);
-    const [selectedMaterial, setSelectedMaterial] = useState(null);
+    const [itemForViewer, setItemForViewer] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef(null);
 
@@ -127,10 +127,20 @@ const TrainerMaterialManager = () => {
     };
 
     const handleViewMaterial = (material) => {
-        const content = material.type === MaterialType.VIDEO
-          ? (material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`)
-          : material.content;
-        setSelectedMaterial({ ...material, content });
+        // Build a generic item for the central viewer modal
+        let url;
+        if (material.type === MaterialType.VIDEO) {
+            url = material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
+        } else {
+            // Secure streaming endpoint for PDFs/DOCs/PPTs
+            url = `/materials/${material.id}/view_content/`;
+        }
+        setItemForViewer({
+            title: material.title,
+            type: material.type,
+            url,
+            filename: material.title,
+        });
         setIsViewerOpen(true);
     };
 
@@ -220,7 +230,7 @@ const TrainerMaterialManager = () => {
             <MaterialViewerModal 
                 isOpen={isViewerOpen}
                 onClose={() => setIsViewerOpen(false)}
-                material={selectedMaterial}
+                item={itemForViewer}
             />
     </div>
   );
