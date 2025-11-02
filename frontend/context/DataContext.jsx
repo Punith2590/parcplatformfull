@@ -932,12 +932,6 @@ export const DataProvider = ({ children }) => {
                     </button>
                 </div>
             )}
-            {/* Loading Overlay */}
-            {isLoading && !fetchedRef.current && ( // Show only during initial load or forced refetch
-                <div className="fixed inset-0 z-[99] bg-white/70 backdrop-blur-sm flex items-center justify-center text-slate-700 text-sm">
-                    Loading Dashboard Data...
-                </div>
-            )}
         </DataContext.Provider>
     );
 };

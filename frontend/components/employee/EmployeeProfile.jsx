@@ -4,13 +4,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useData } from '../../context/DataContext';
 import Spinner from '../shared/Spinner';
-import { AcademicCapIcon, BriefcaseIcon, PencilIcon, SparklesIcon, UserCircleIcon, PlusIcon, XIcon, BookmarkSquareIcon, EyeIcon } from '../icons/Icons';
+import { 
+    AcademicCapIcon, BriefcaseIcon, PencilIcon, SparklesIcon, 
+    UserCircleIcon, PlusIcon, XIcon, BookmarkSquareIcon, EyeIcon 
+} from '../icons/Icons';
 import EducationEntryModal from './EducationEntryModal';
 import WorkExperienceEntryModal from './WorkExperienceEntryModal';
 import CertificationEntryModal from './CertificationEntryModal';
 import MaterialViewerModal from '../shared/MaterialViewerModal';
 
-// Header Component
+// Helper component for section headers
 const ProfileSectionHeader = ({ title, icon: Icon, onAdd }) => (
     <div className="flex items-center justify-between pb-4 border-b border-slate-200">
         <div className="flex items-center gap-3">
@@ -60,7 +63,7 @@ const EducationCard = ({ entry, onEdit, onDelete }) => {
     );
 };
 
-// --- NEW Work Experience Card Component ---
+// Work Experience Card Component
 const WorkExperienceCard = ({ entry, onEdit, onDelete }) => {
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/A';
@@ -90,8 +93,8 @@ const WorkExperienceCard = ({ entry, onEdit, onDelete }) => {
     );
 };
 
-// --- NEW Certification Card Component ---
-const CertificationCard = ({ entry, onEdit, onDelete, onView }) => { // Add onView prop
+// Certification Card Component
+const CertificationCard = ({ entry, onEdit, onDelete, onView }) => {
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/A';
         return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
@@ -115,7 +118,7 @@ const CertificationCard = ({ entry, onEdit, onDelete, onView }) => { // Add onVi
                     {entry.certificate_url && (
                         <button 
                             type="button" 
-                            onClick={onView} // Use the passed-in handler
+                            onClick={onView}
                             className="p-1.5 text-slate-400 hover:text-green-600" 
                             title="View Certificate"
                         >
@@ -130,22 +133,25 @@ const CertificationCard = ({ entry, onEdit, onDelete, onView }) => { // Add onVi
     );
 };
 
-
-const EmployeeProfile = () => {
+// --- Main EmployeeProfile Component ---
+// Accept the new prop 'isFirstLogin'
+const EmployeeProfile = ({ isFirstLogin = false }) => {
     const { user } = useAuth();
     const { 
-        employees, updateUser, 
+        users, // Get the raw 'users' list
+        updateUser, 
         addEducationEntry, updateEducationEntry, deleteEducationEntry,
         addWorkExperienceEntry, updateWorkExperienceEntry, deleteWorkExperienceEntry,
         addCertificationEntry, updateCertificationEntry, deleteCertificationEntry,
         isLoading: dataLoading, error, setError 
     } = useData();
+    
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState('');
-    const [isViewerOpen, setIsViewerOpen] = useState(false);
-    const [itemForViewer, setItemForViewer] = useState(null);
   
     // Modal State
+    const [isViewerOpen, setIsViewerOpen] = useState(false);
+    const [itemForViewer, setItemForViewer] = useState(null);
     const [isEducationModalOpen, setIsEducationModalOpen] = useState(false);
     const [editingEducationEntry, setEditingEducationEntry] = useState(null);
     const [isWorkExperienceModalOpen, setIsWorkExperienceModalOpen] = useState(false);
@@ -155,8 +161,9 @@ const EmployeeProfile = () => {
 
     // Use loose equality (==) for matching
     const fullEmployee = useMemo(() => {
-        return Array.isArray(employees) ? employees.find(e => e.id == user.user_id) : null;
-    }, [employees, user.user_id]);
+        // Find the user from the main 'users' list, not the derived 'employees' list
+        return Array.isArray(users) ? users.find(e => e.id == user.user_id) : null;
+    }, [users, user.user_id]);
 
     const [formData, setFormData] = useState({
         name: '', email: '', phone: '', department: '',
@@ -191,14 +198,19 @@ const EmployeeProfile = () => {
         setSuccess('');
         setError(null);
 
+        // The updateUser function in DataContext is robust
+        // It re-fetches the user data on success.
         const { success } = await updateUser(user.user_id, formData);
         
         setLoading(false);
-        if (success) { // Check the success flag from the robust updateUser
+        if (success) {
             setSuccess('Profile updated successfully!');
             setTimeout(() => setSuccess(''), 3000);
+            
+            // If this was the "first login" save, the parent (EmployeeDashboard)
+            // will detect the change and re-render automatically.
+            // We don't need to force a reload here.
         }
-        // Error is handled globally by DataContext
     };
   
     // --- Education Handlers ---
@@ -229,7 +241,7 @@ const EmployeeProfile = () => {
         }
     };
 
-    // --- NEW Work Experience Handlers ---
+    // --- Work Experience Handlers ---
     const handleOpenWorkExperienceModal = (entry = null) => {
         setEditingWorkExperienceEntry(entry);
         setIsWorkExperienceModalOpen(true);
@@ -257,7 +269,7 @@ const EmployeeProfile = () => {
         }
     };
 
-    // --- NEW Certification Handlers ---
+    // --- Certification Handlers ---
     const handleOpenCertificationModal = (entry = null) => {
         setEditingCertificationEntry(entry);
         setIsCertificationModalOpen(true);
@@ -284,22 +296,21 @@ const EmployeeProfile = () => {
             deleteCertificationEntry(entryId, user.user_id);
         }
     };
+    
+    // --- Generic file view handler ---
     const handleViewFile = (item) => {
-      // We assume certificates and docs are PDFs or images
-      // We can improve type detection later if needed
-      let type = 'PDF';
-      if (item.filename?.match(/\.(jpg|jpeg|png|gif)$/i)) {
-          type = 'IMAGE';
-      }
-
-      setItemForViewer({
-          title: item.title,
-          type: type, // Assume PDF/Image
-          url: item.certificate_url || item.document_url, // Use the correct URL prop
-          filename: item.filename
-      });
-      setIsViewerOpen(true);
-   };
+        let type = 'PDF';
+        if (item.filename?.match(/\.(jpg|jpeg|png|gif)$/i)) {
+            type = 'IMAGE';
+        }
+        setItemForViewer({
+            title: item.title,
+            type: type,
+            url: item.certificate_url || item.document_url,
+            filename: item.filename
+        });
+        setIsViewerOpen(true);
+    };
   
     const formLabelClasses = "block text-sm font-medium text-slate-700 mb-1";
     const formInputClasses = "block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm disabled:bg-slate-100 disabled:text-slate-500";
@@ -323,19 +334,34 @@ const EmployeeProfile = () => {
 
     return (
         <div>
-            {/* Page Header */}
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-3xl font-bold text-pygenic-blue">My Profile</h1>
-                    <p className="mt-2 text-slate-600">Update your personal and professional information.</p>
+            {/* --- SPECIAL HEADER FOR FIRST LOGIN --- */}
+            {isFirstLogin && (
+                <div className="mb-8 p-6 bg-violet-600 text-white rounded-lg shadow-lg">
+                    <h1 className="text-3xl font-bold">Welcome, {user?.name}!</h1>
+                    <p className="mt-2 text-violet-100 text-lg">
+                        Please complete your profile to continue to the dashboard.
+                    </p>
+                    <p className="text-violet-200 text-sm">
+                        (We require at least your <span className="font-bold">Bio</span> and <span className="font-bold">Skills</span> to be filled out.)
+                    </p>
                 </div>
-                {success && (
-                    <div className="p-3 rounded-md bg-green-100 text-green-800 text-sm">
-                        {success}
-                    </div>
-                )}
-            </div>
+            )}
 
+            {/* Normal Page Header (hidden on first login) */}
+            {!isFirstLogin && (
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 className="text-3xl font-bold text-pygenic-blue">My Profile</h1>
+                        <p className="mt-2 text-slate-600">Update your personal and professional information.</p>
+                    </div>
+                    {success && (
+                        <div className="p-3 rounded-md bg-green-100 text-green-800 text-sm">
+                            {success}
+                        </div>
+                    )}
+                </div>
+            )}
+            
             {/* Main Form Content */}
             <form onSubmit={handleProfileSubmit}>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -365,17 +391,17 @@ const EmployeeProfile = () => {
                                 </div>
                             </div>
                             <div className="mt-6">
-                                <label htmlFor="bio" className={formLabelClasses}>Bio / Professional Summary</label>
-                                <textarea name="bio" id="bio" value={formData.bio} onChange={handleInputChange} className={formTextareaClasses} placeholder="A brief introduction or professional summary..."></textarea>
+                                <label htmlFor="bio" className={formLabelClasses}>Bio / Professional Summary <span className="text-red-500">*</span></label>
+                                <textarea name="bio" id="bio" value={formData.bio} onChange={handleInputChange} required className={formTextareaClasses} placeholder="A brief introduction or professional summary..."></textarea>
                             </div>
                         </div>
 
-                        {/* --- Work History Card --- */}
+                        {/* Work History Card */}
                         <div className="bg-white p-6 shadow-sm border border-slate-200 rounded-lg">
                             <ProfileSectionHeader 
                                 icon={BriefcaseIcon} 
                                 title="Work Experience & Achievements"
-                                onAdd={() => handleOpenWorkExperienceModal(null)} // <-- ADDED
+                                onAdd={() => handleOpenWorkExperienceModal(null)}
                             />
                             <div className="mt-4 divide-y divide-slate-100">
                                 {fullEmployee && Array.isArray(fullEmployee.work_experience_entries) && fullEmployee.work_experience_entries.length > 0 ? (
@@ -415,57 +441,54 @@ const EmployeeProfile = () => {
                                 )}
                             </div>
                         </div>
-                        {/* --- Certification Card --- */}
+
+                        {/* Certification Card */}
                         <div className="bg-white p-6 shadow-sm border border-slate-200 rounded-lg">
-                        <ProfileSectionHeader 
-                            icon={BookmarkSquareIcon}
-                            title="Certifications"
-                            onAdd={() => handleOpenCertificationModal(null)}
-                        />
-                        <div className="mt-4 divide-y divide-slate-100">
-                            {fullEmployee && Array.isArray(fullEmployee.certification_entries) && fullEmployee.certification_entries.length > 0 ? (
-                                fullEmployee.certification_entries.map(entry => (
-                                    <CertificationCard 
-                                        key={entry.id} 
-                                        entry={entry}
-                                        onEdit={() => handleOpenCertificationModal(entry)}
-                                        onDelete={() => handleDeleteCertification(entry.id)}
-                                        onView={() => handleViewFile(entry)} // <-- PASS HANDLER
-                                    />
-                                ))
-                            ) : (
-                                <p className="text-sm text-slate-500 py-4">No certifications added yet. Click the '+' icon to add one.</p>
-                            )}
+                            <ProfileSectionHeader 
+                                icon={BookmarkSquareIcon}
+                                title="Certifications"
+                                onAdd={() => handleOpenCertificationModal(null)}
+                            />
+                            <div className="mt-4 divide-y divide-slate-100">
+                                {fullEmployee && Array.isArray(fullEmployee.certification_entries) && fullEmployee.certification_entries.length > 0 ? (
+                                    fullEmployee.certification_entries.map(entry => (
+                                        <CertificationCard 
+                                            key={entry.id} 
+                                            entry={entry}
+                                            onEdit={() => handleOpenCertificationModal(entry)}
+                                            onDelete={() => handleDeleteCertification(entry.id)}
+                                            onView={() => handleViewFile(entry)}
+                                        />
+                                    ))
+                                ) : (
+                                    <p className="text-sm text-slate-500 py-4">No certifications added yet. Click the '+' icon to add one.</p>
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
 
                     {/* --- Right Column (Sidebar) --- */}
                     <div className="lg:col-span-1 space-y-6">
-                        
                         <div className="sticky top-6">
-                            {/* Save Button for main profile */}
                             <button type="submit" disabled={loading} className="w-full flex items-center justify-center px-6 py-3 text-sm font-semibold text-white bg-violet-600 rounded-lg shadow-sm hover:bg-violet-700 disabled:bg-violet-400">
                                 {loading ? <Spinner size="sm" color="text-white" /> : 'Save Profile Changes'}
                             </button>
                             
-                            {/* Skills Card */}
                             <div className="mt-6 bg-white p-6 shadow-sm border border-slate-200 rounded-lg">
                                 <ProfileSectionHeader icon={SparklesIcon} title="Skills & Expertise" />
                                 <div className="mt-6">
-                                    <label htmlFor="expertise" className={formLabelClasses}>Skills (comma-separated)</label>
-                                    <input type="text" name="expertise" id="expertise" value={formData.expertise} onChange={handleInputChange} className={formInputClasses} placeholder="React, Python, SQL..." />
+                                    <label htmlFor="expertise" className={formLabelClasses}>Skills (comma-separated) <span className="text-red-500">*</span></label>
+                                    <input type="text" name="expertise" id="expertise" value={formData.expertise} onChange={handleInputChange} required className={formInputClasses} placeholder="React, Python, SQL..." />
                                     <div className="mt-4">
                                         {skillsBadges}
                                     </div>
                                 </div>
                                 <div className="mt-6">
-                                    <label htmlFor="experience" className={formLabelClasses}>Years of Experience</label>
-                                    <input type="number" name="experience" id="experience" value={formData.experience} onChange={handleInputChange} className={formInputClasses} />
+                                     <label htmlFor="experience" className={formLabelClasses}>Years of Experience</label>
+                                     <input type="number" name="experience" id="experience" value={formData.experience} onChange={handleInputChange} className={formInputClasses} />
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </form>
@@ -497,7 +520,7 @@ const EmployeeProfile = () => {
                     initialData={editingCertificationEntry}
                 />
             )}
-
+            
             <MaterialViewerModal
                 isOpen={isViewerOpen}
                 onClose={() => setIsViewerOpen(false)}

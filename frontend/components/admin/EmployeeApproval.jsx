@@ -1,6 +1,6 @@
 // frontend/components/admin/EmployeeApproval.jsx
 
-import React, { useState } from 'react'; // <-- THIS IS THE FIX: Added 'useState'
+import React, { useState } from 'react';
 import { useData } from '../../context/DataContext';
 import { EyeIcon } from '../icons/Icons';
 import MaterialViewerModal from '../shared/MaterialViewerModal'; // Import the modal
@@ -8,10 +8,8 @@ import MaterialViewerModal from '../shared/MaterialViewerModal'; // Import the m
 const EmployeeApproval = () => {
   const { employeeApplications = [], approveEmployeeApplication, declineEmployeeApplication } = useData();
   
-  // --- This line was causing the error without the import ---
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [itemForViewer, setItemForViewer] = useState(null);
-  // ---
 
   const viewResume = (app) => {
     if (!app.resume) {
@@ -34,9 +32,9 @@ const EmployeeApproval = () => {
 
       <div className="mt-8 flow-root">
         <div className="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
-          <div className="inline-block min-w-full py-2 align-middle sm:px-6 lg:-mx-8">
+          <div className="inline-block w-full py-2 align-middle px-4 sm:px-6 lg:px-8">
             <div className="overflow-hidden shadow-sm ring-1 ring-black ring-opacity-5 sm:rounded-lg border">
-              <table className="min-w-full divide-y divide-slate-200">
+              <table className="w-full divide-y divide-slate-200 table-auto">
                 <thead className="bg-slate-50">
                    <tr>
                     <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-6">Name</th>
@@ -51,13 +49,13 @@ const EmployeeApproval = () => {
                   {Array.isArray(employeeApplications) && employeeApplications.length > 0 ? (
                     employeeApplications.map((app) => (
                       <tr key={app.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{app.name}</td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
+            <td className="py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-6">{app.name}</td>
+            <td className="px-3 py-4 text-sm text-slate-500">
                             <div>{app.email}</div>
                             <div>{app.phone}</div>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{app.department || 'N/A'}</td>
-                        <td className="px-3 py-4 text-sm text-slate-500 max-w-xs truncate">{app.skills || 'N/A'}</td>
+            <td className="px-3 py-4 text-sm text-slate-500">{app.department || 'N/A'}</td>
+            <td className="px-3 py-4 text-sm text-slate-500 max-w-xs truncate">{app.skills || 'N/A'}</td>
                         <td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">
                             {app.resume ? (
                                 <button onClick={() => viewResume(app)} className="flex items-center gap-1 text-slate-600 hover:text-violet-600">
@@ -67,7 +65,7 @@ const EmployeeApproval = () => {
                                 'N/A'
                             )}
                         </td>
-                        <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
+                        <td className="relative py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6 space-x-2">
                             <button
                                 onClick={() => declineEmployeeApplication(app.id)}
                                 className="px-2.5 py-1.5 text-xs font-semibold text-red-700 bg-red-100 rounded-md shadow-sm hover:bg-red-200"
