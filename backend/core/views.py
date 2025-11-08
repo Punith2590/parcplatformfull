@@ -433,6 +433,8 @@ class EmployeeDocumentViewSet(viewsets.ModelViewSet):
 class EducationEntryViewSet(viewsets.ModelViewSet):
     serializer_class = EducationEntrySerializer
     permission_classes = [IsAuthenticated]
+    # --- ADD THIS LINE ---
+    parser_classes = (MultiPartParser, FormParser) # For file upload
 
     def get_queryset(self):
         user = self.request.user
@@ -466,9 +468,38 @@ class EducationEntryViewSet(viewsets.ModelViewSet):
         user = self.request.user
         # Allow employee to delete their own entry, or Admin to delete any
         if instance.employee == user or user.role == 'ADMIN' or user.is_staff:
+            # --- ADDED: Delete the file from storage ---
+            if instance.marksheet_file:
+                instance.marksheet_file.delete(save=False)
+            # --- END ADD ---
             instance.delete()
         else:
             raise PermissionDenied("You do not have permission to delete this document.")
+
+    # --- ADD THIS NEW ACTION ---
+    @action(detail=True, methods=['get'])
+    def view_marksheet(self, request, pk=None):
+        doc = self.get_object()
+        user = request.user
+        
+        # Check permissions
+        if not (user.role == 'ADMIN' or user.is_staff or doc.employee == user):
+             raise PermissionDenied("You do not have permission to view this marksheet.")
+        
+        file_field = doc.marksheet_file
+        if not file_field:
+             return Response({'detail': 'No marksheet file found for this entry.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            f = file_field.open('rb')
+            content_type, _ = mimetypes.guess_type(file_field.name)
+            content_type = content_type or 'application/octet-stream'
+            response = FileResponse(f, content_type=content_type)
+            response['Content-Disposition'] = f'inline; filename="{os.path.basename(file_field.name)}"'
+            return response
+        except FileNotFoundError:
+             return Response({'detail': 'File not found on server.'}, status=status.HTTP_404_NOT_FOUND)
+    # --- END ADD ---
 
 class WorkExperienceEntryViewSet(viewsets.ModelViewSet):
     serializer_class = WorkExperienceEntrySerializer

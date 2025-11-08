@@ -33,8 +33,8 @@ const ProfileSectionHeader = ({ title, icon: Icon, onAdd }) => (
     </div>
 );
 
-// Education Card Component
-const EducationCard = ({ entry, onEdit, onDelete }) => {
+// --- UPDATED Education Card Component ---
+const EducationCard = ({ entry, onEdit, onDelete, onView }) => {
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/A';
         return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
@@ -55,6 +55,18 @@ const EducationCard = ({ entry, onEdit, onDelete }) => {
                     {entry.website && <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-600 hover:underline">View Website</a>}
                 </div>
                 <div className="flex-shrink-0 flex gap-2">
+                    {/* --- ADDED: View Marksheet Button --- */}
+                    {entry.marksheet_url && (
+                        <button 
+                            type="button" 
+                            onClick={onView}
+                            className="p-1.5 text-slate-400 hover:text-green-600" 
+                            title="View Marksheet"
+                        >
+                            <EyeIcon className="w-4 h-4" />
+                        </button>
+                    )}
+                    {/* --- END ADD --- */}
                     <button type="button" onClick={onEdit} className="p-1.5 text-slate-400 hover:text-blue-600"><PencilIcon className="w-4 h-4" /></button>
                     <button type="button" onClick={onDelete} className="p-1.5 text-slate-400 hover:text-red-600"><XIcon className="w-4 h-4" /></button>
                 </div>
@@ -62,6 +74,7 @@ const EducationCard = ({ entry, onEdit, onDelete }) => {
         </div>
     );
 };
+// --- END UPDATE ---
 
 // Work Experience Card Component
 const WorkExperienceCard = ({ entry, onEdit, onDelete }) => {
@@ -222,10 +235,12 @@ const EmployeeProfile = ({ isFirstLogin = false }) => {
         setIsEducationModalOpen(false);
         setEditingEducationEntry(null);
     };
-    const handleSaveEducation = async (educationData) => {
+    const handleSaveEducation = async (educationData) => { // This will be FormData
         setLoading(true);
         const { success } = editingEducationEntry
+            // --- UPDATED: Pass FormData to update ---
             ? await updateEducationEntry(editingEducationEntry.id, educationData)
+            // --- UPDATED: Pass FormData to add ---
             : await addEducationEntry(educationData);
         
         if (success) {
@@ -300,13 +315,17 @@ const EmployeeProfile = ({ isFirstLogin = false }) => {
     // --- Generic file view handler ---
     const handleViewFile = (item) => {
         let type = 'PDF';
-        if (item.filename?.match(/\.(jpg|jpeg|png|gif)$/i)) {
+        // --- UPDATED: Check for 'marksheet_url' ---
+        const url = (item.certificate_url || item.marksheet_url || '').toLowerCase();
+        const filename = (item.filename || '').toLowerCase();
+
+        if (filename.match(/\.(jpg|jpeg|png|gif)$/i) || url.match(/\.(jpg|jpeg|png|gif)$/i)) {
             type = 'IMAGE';
         }
         setItemForViewer({
             title: item.title,
             type: type,
-            url: item.certificate_url || item.document_url,
+            url: item.certificate_url || item.marksheet_url, // Use the correct URL prop
             filename: item.filename
         });
         setIsViewerOpen(true);
@@ -434,6 +453,8 @@ const EmployeeProfile = ({ isFirstLogin = false }) => {
                                             entry={entry}
                                             onEdit={() => handleOpenEducationModal(entry)}
                                             onDelete={() => handleDeleteEducation(entry.id)}
+                                            // --- ADDED: Pass view handler ---
+                                            onView={() => handleViewFile(entry)}
                                         />
                                     ))
                                 ) : (

@@ -326,16 +326,20 @@ export const DataProvider = ({ children }) => {
         }
     };
 
-   const addEducationEntry = async (entryData) => {
+   // --- UPDATED: Handle FormData ---
+   const addEducationEntry = async (entryData) => { // entryData is now FormData
         try {
-            await apiClient.post('/education-entries/', entryData);
-            // --- RE-FETCH FIX ---
+            await apiClient.post('/education-entries/', entryData, {
+                headers: { 'Content-Type': 'multipart/form-data' },
+            });
             // Re-fetch the full user profile to get the updated list
             const response = await apiClient.get(`/users/${user.user_id}/`);
-            // 3. Update the user in the global 'users' state
             setUsers(prev => prev.map(u => 
                 u.id == user.user_id ? response.data : u // Use loose equality
             ));
+            // --- ADDED: Refresh documents list ---
+            const docsResponse = await apiClient.get('/employee-documents/');
+            setEmployeeDocuments(Array.isArray(docsResponse.data) ? docsResponse.data : []);
             return { success: true };
         } catch (error) {
             console.error("Failed to add education entry:", error.response?.data || error.message);
@@ -344,14 +348,21 @@ export const DataProvider = ({ children }) => {
         }
     };
 
-    const updateEducationEntry = async (entryId, entryData) => {
+    // --- UPDATED: Handle FormData ---
+    const updateEducationEntry = async (entryId, entryData) => { // entryData is now FormData
         try {
-            await apiClient.patch(`/education-entries/${entryId}/`, entryData);
-            // --- RE-FETCH FIX ---
+            // Use PATCH for FormData updates (some backends prefer POST for multipart updates)
+            await apiClient.patch(`/education-entries/${entryId}/`, entryData, {
+                 headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            // Re-fetch the full user profile
             const response = await apiClient.get(`/users/${user.user_id}/`);
             setUsers(prev => prev.map(u => 
                 u.id == user.user_id ? response.data : u // Use loose equality
             ));
+            // --- ADDED: Refresh documents list ---
+            const docsResponse = await apiClient.get('/employee-documents/');
+            setEmployeeDocuments(Array.isArray(docsResponse.data) ? docsResponse.data : []);
             return { success: true };
         } catch (error) {
             console.error("Failed to update education entry:", error.response?.data || error.message);
@@ -364,16 +375,20 @@ export const DataProvider = ({ children }) => {
         if (!employeeId || employeeId != user.user_id) return; // Use loose equality
         try {
             await apiClient.delete(`/education-entries/${entryId}/`);
-            // --- RE-FETCH FIX ---
+            // Re-fetch user
             const response = await apiClient.get(`/users/${employeeId}/`);
             setUsers(prev => prev.map(u => 
                 u.id == employeeId ? response.data : u // Use loose equality
             ));
+             // --- ADDED: Refresh documents list ---
+            const docsResponse = await apiClient.get('/employee-documents/');
+            setEmployeeDocuments(Array.isArray(docsResponse.data) ? docsResponse.data : []);
         } catch (error) {
             console.error("Failed to delete education entry:", error);
             setError("Failed to delete education entry.");
         }
     };
+    // --- END EDUCATION UPDATES ---
 
     const addWorkExperienceEntry = async (entryData) => {
         try {

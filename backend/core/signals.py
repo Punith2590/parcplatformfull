@@ -2,7 +2,8 @@
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from .models import Certification, EmployeeDocument
+# --- UPDATE IMPORTS ---
+from .models import Certification, EmployeeDocument, EducationEntry
 
 @receiver(post_save, sender=Certification)
 def create_employee_document_from_certificate(sender, instance, created, **kwargs):
@@ -23,3 +24,22 @@ def create_employee_document_from_certificate(sender, instance, created, **kwarg
     
     # Handle update? If the certificate_file is *changed*, should we update the EmployeeDocument?
     # This is more complex. For now, we only handle creation.
+
+
+# --- ADD THIS NEW RECEIVER ---
+@receiver(post_save, sender=EducationEntry)
+def create_employee_document_from_marksheet(sender, instance, **kwargs):
+    """
+    When an EducationEntry is saved AND it has a marksheet_file,
+    automatically create a corresponding EmployeeDocument if one for that file
+    doesn't already exist.
+    """
+    if instance.marksheet_file:
+        # Check if a document for this *specific file* already exists
+        if not EmployeeDocument.objects.filter(employee=instance.employee, document=instance.marksheet_file).exists():
+            EmployeeDocument.objects.create(
+                employee=instance.employee,
+                title=f"Marksheet: {instance.title} ({instance.institute})",
+                document=instance.marksheet_file
+            )
+# --- END ADD ---

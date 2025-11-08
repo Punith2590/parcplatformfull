@@ -14,10 +14,7 @@ const MaterialManager = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   
-  // --- THIS IS THE FIX ---
-  // Renamed state variable to match what's being passed to the modal
   const [itemForViewer, setItemForViewer] = useState(null); 
-  // --- END FIX ---
   
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -91,30 +88,25 @@ const MaterialManager = () => {
     }
   };
 
-  // --- THIS IS THE SECOND PART OF THE FIX ---
-  // This function now creates the generic 'item' object
-  // that the MaterialViewerModal expects.
   const handleViewMaterial = (material) => {
     let url;
     let type = material.type;
 
     if (type === MaterialType.VIDEO) {
-        // Videos use the direct public URL
         url = material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
     } else {
-        // All other types (PDF, DOC, PPT) use the secure fetch URL
         url = `/materials/${material.id}/view_content/`;
     }
 
     setItemForViewer({
         title: material.title,
         type: type,
-        url: url, // This is now either a direct video link or a fetch path
-        filename: material.title 
+        url: url,
+        filename: material.title,
+        content: material.content // <-- ADDED: Pass the raw file path
     });
     setIsViewerOpen(true);
   };
-  // --- END FIX ---
   
   const formLabelClasses = "block text-sm font-medium text-slate-700";
 
@@ -173,7 +165,6 @@ const MaterialManager = () => {
 
       <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingMaterial ? 'Edit Material' : 'Add New Material'}>
         <form onSubmit={handleSubmit} className="space-y-6">
-            {/* ... (The form content here is fine and doesn't need changes) ... */}
             <div>
               <label htmlFor="title" className={formLabelClasses}>Title</label>
               <input type="text" name="title" id="title" value={newMaterial.title} onChange={handleInputChange} required className="mt-1 block w-full rounded-md border-slate-300 shadow-sm focus:border-violet-500 focus:ring-violet-500 sm:text-sm" placeholder="e.g., Introduction to React" />
@@ -223,14 +214,11 @@ const MaterialManager = () => {
         </form>
       </Modal>
 
-      {/* --- THIS IS THE FIX --- */}
-      {/* Pass 'itemForViewer' to the 'item' prop */}
       <MaterialViewerModal 
           isOpen={isViewerOpen}
           onClose={() => setIsViewerOpen(false)}
           item={itemForViewer}
       />
-      {/* --- END FIX --- */}
     </div>
   );
 };

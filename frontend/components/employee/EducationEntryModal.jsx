@@ -1,9 +1,10 @@
 // frontend/components/employee/EducationEntryModal.jsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../../context/DataContext';
 import Modal from '../shared/Modal';
 import Spinner from '../shared/Spinner';
+import { UploadIcon } from '../icons/Icons'; // <-- Import UploadIcon
 
 const EducationEntryModal = ({ isOpen, onClose, onSave, initialData }) => {
     const [formData, setFormData] = useState({
@@ -16,7 +17,10 @@ const EducationEntryModal = ({ isOpen, onClose, onSave, initialData }) => {
         currently_ongoing: false,
         academic_performance: '',
     });
+    // --- ADDED: State for the file ---
+    const [marksheetFile, setMarksheetFile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const fileInputRef = useRef(null);
 
     // Pre-fill form if initialData is provided (for editing)
     useEffect(() => {
@@ -39,6 +43,11 @@ const EducationEntryModal = ({ isOpen, onClose, onSave, initialData }) => {
                 academic_performance: '',
             });
         }
+        // --- ADDED: Reset file input on open ---
+        setMarksheetFile(null); 
+        if (fileInputRef.current) {
+            fileInputRef.current.value = null;
+        }
     }, [initialData, isOpen]); // Reset when modal opens
 
     const handleChange = (e) => {
@@ -49,17 +58,39 @@ const EducationEntryModal = ({ isOpen, onClose, onSave, initialData }) => {
         }));
     };
 
+    // --- ADDED: File change handler ---
+    const handleFileChange = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            setMarksheetFile(e.target.files[0]);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
-        const payload = {
-            ...formData,
-            end_date: formData.currently_ongoing ? null : formData.end_date, // Set end_date to null if ongoing
-        };
+        // --- UPDATED: Use FormData for file upload ---
+        const payload = new FormData();
+        payload.append('title', formData.title);
+        payload.append('institute', formData.institute);
+        payload.append('location', formData.location);
+        payload.append('website', formData.website);
+        payload.append('start_date', formData.start_date);
+        payload.append('academic_performance', formData.academic_performance);
+        payload.append('currently_ongoing', formData.currently_ongoing);
+        
+        if (!formData.currently_ongoing && formData.end_date) {
+            payload.append('end_date', formData.end_date);
+        }
+
+        // Add the file only if it's a new file
+        if (marksheetFile) {
+            payload.append('marksheet_file', marksheetFile);
+        }
+        // --- END FormData UPDATE ---
         
         // onSave is either addEducationEntry or updateEducationEntry
-        await onSave(payload); 
+        await onSave(payload); // Pass FormData to onSave
 
         setLoading(false);
         onClose(); // Close modal on successful save
@@ -70,21 +101,11 @@ const EducationEntryModal = ({ isOpen, onClose, onSave, initialData }) => {
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={initialData ? "Edit Education" : "Add Education"}>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            {/* --- UPDATED: Use FormData --- */}
+            <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                     <label htmlFor="title" className={formLabelClasses}>Title <span className="text-red-500">*</span></label>
                     <input type="text" name="title" id="title" value={formData.title} onChange={handleChange} required className={formInputClasses} placeholder="e.g., Bachelor of Engineering"/>
-                    {/* Example of a dropdown, though screenshot shows text */}
-                    {/* <select name="title" id="title" value={formData.title} onChange={handleChange} required className={formInputClasses}>
-                        <option value="" disabled>Select education level</option>
-                        <option value="High School (SSLC)">High School (SSLC)</option>
-                        <option value="Pre-University (PUC)">Pre-University (PUC)</option>
-                        <option value="Bachelor's Degree">Bachelor's Degree</option>
-                        <option value="Master's Degree">Master's Degree</option>
-                        <option value="Doctorate (Ph.D.)">Doctorate (Ph.D.)</option>
-                        <option value="Certification">Certification</option>
-                        <option value="Other">Other</option>
-                    </select> */}
                 </div>
                 <div>
                     <label htmlFor="institute" className={formLabelClasses}>Institute/Organisation <span className="text-red-500">*</span></label>
@@ -122,6 +143,22 @@ const EducationEntryModal = ({ isOpen, onClose, onSave, initialData }) => {
                     <label htmlFor="academic_performance" className={formLabelClasses}>Academic Performance</label>
                     <input type="text" name="academic_performance" id="academic_performance" value={formData.academic_performance} onChange={handleChange} className={formInputClasses} placeholder="e.g., 7.67 CGPA or 85%"/>
                 </div>
+                
+                {/* --- ADDED: File Upload Section --- */}
+                <div>
+                    <label htmlFor="marksheet_file" className={formLabelClasses}>Upload Marksheet</label>
+                    <div className="mt-1 flex items-center">
+                        <label htmlFor="marksheet_file" className="cursor-pointer bg-white py-2 px-3 border border-slate-300 rounded-md shadow-sm text-sm leading-4 font-medium text-slate-700 hover:bg-slate-50">
+                            <UploadIcon className="w-5 h-5 inline-block mr-2" />
+                            <span>{marksheetFile ? 'Change file' : 'Select file'}</span>
+                            <input ref={fileInputRef} id="marksheet_file" name="marksheet_file" type="file" className="sr-only" onChange={handleFileChange} />
+                        </label>
+                        {marksheetFile && <span className="ml-3 text-sm text-slate-600">{marksheetFile.name}</span>}
+                        {!marksheetFile && initialData?.filename && <span className="ml-3 text-sm text-slate-500">Current file: {initialData.filename}</span>}
+                    </div>
+                </div>
+                {/* --- END ADD --- */}
+
 
                 <div className="mt-6 flex justify-end gap-4">
                     <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md shadow-sm hover:bg-slate-50">Cancel</button>

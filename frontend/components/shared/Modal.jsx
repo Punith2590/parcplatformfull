@@ -1,6 +1,9 @@
+// frontend/components/shared/Modal.jsx
+
 import React from 'react';
 import { XIcon } from '../icons/Icons';
 
+// --- UPDATED: Added 4xl, 5xl, and 6xl ---
 const sizeClasses = {
   sm: 'sm:max-w-sm',
   md: 'sm:max-w-md',
@@ -8,7 +11,11 @@ const sizeClasses = {
   xl: 'sm:max-w-xl',
   '2xl': 'sm:max-w-2xl',
   '3xl': 'sm:max-w-3xl',
+  '4xl': 'sm:max-w-4xl',
+  '5xl': 'sm:max-w-5xl',
+  '6xl': 'sm:max-w-6xl',
 };
+// --- END UPDATE ---
 
 const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
   if (!isOpen) return null;

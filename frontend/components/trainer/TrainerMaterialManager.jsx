@@ -44,7 +44,7 @@ const MaterialCard = ({ material, onUpdate, onDelete, onView, canEdit }) => (
 
 
 const TrainerMaterialManager = () => {
-    const { materials, courses, addMaterial, updateMaterial, deleteMaterial } = useData();
+    const { materials, courses, schedules, addMaterial, updateMaterial, deleteMaterial } = useData();
     const { user } = useAuth();
     
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,13 +57,32 @@ const TrainerMaterialManager = () => {
     const getInitialMaterialState = () => ({ title: '', course: '', type: MaterialType.DOC, content: null });
     const [newMaterial, setNewMaterial] = useState(getInitialMaterialState());
 
-    const { myUploads, publicMaterials } = useMemo(() => {
-        if (!user) return { myUploads: [], publicMaterials: [] };
-        // Use loose equality (==) to handle potential type mismatches (e.g., "1" == 1)
+    const { myUploads, assignedMaterials } = useMemo(() => {
+        if (!user || !materials || !schedules) {
+            return { myUploads: [], assignedMaterials: [] };
+        }
+
         const myUploads = materials.filter(m => m.uploader == user.user_id);
-        const publicMaterials = materials.filter(m => m.uploader === null);
-        return { myUploads, publicMaterials };
-    }, [materials, user]);
+        const myUploadIds = new Set(myUploads.map(m => m.id));
+
+        const now = new Date();
+        const myActiveSchedules = schedules.filter(s => 
+            s.trainer == user.user_id && s.endDate >= now
+        );
+
+        const allAssignedMaterials = myActiveSchedules.flatMap(s => s.materials);
+        const uniqueMaterialMap = new Map();
+        allAssignedMaterials.forEach(material => {
+            if (!uniqueMaterialMap.has(material.id)) {
+                uniqueMaterialMap.set(material.id, material);
+            }
+        });
+        
+        const assignedMaterials = Array.from(uniqueMaterialMap.values())
+            .filter(m => !myUploadIds.has(m.id));
+
+        return { myUploads, assignedMaterials };
+    }, [materials, user, schedules]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -127,12 +146,10 @@ const TrainerMaterialManager = () => {
     };
 
     const handleViewMaterial = (material) => {
-        // Build a generic item for the central viewer modal
         let url;
         if (material.type === MaterialType.VIDEO) {
             url = material.content?.startsWith('http') ? material.content : `${BACKEND_URL}${material.content}`;
         } else {
-            // Secure streaming endpoint for PDFs/DOCs/PPTs
             url = `/materials/${material.id}/view_content/`;
         }
         setItemForViewer({
@@ -140,6 +157,7 @@ const TrainerMaterialManager = () => {
             type: material.type,
             url,
             filename: material.title,
+            content: material.content // <-- ADDED: Pass the raw file path
         });
         setIsViewerOpen(true);
     };
@@ -151,7 +169,7 @@ const TrainerMaterialManager = () => {
       <div className="flex justify-between items-center">
         <div>
             <h1 className="text-3xl font-bold text-pygenic-blue">My Materials</h1>
-            <p className="mt-2 text-slate-600">Upload your own content or browse public course materials.</p>
+            <p className="mt-2 text-slate-600">Manage your personal uploads and view materials assigned to your active schedules.</p>
         </div>
         <button onClick={() => handleOpenModal()} className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors shadow-sm">
           Add Material
@@ -170,14 +188,14 @@ const TrainerMaterialManager = () => {
             ) : <p className="text-slate-500">You haven't uploaded any materials yet.</p>}
         </div>
         <div>
-            <h2 className="text-2xl font-semibold text-slate-900 mb-4">Public Materials</h2>
-            {publicMaterials.length > 0 ? (
+            <h2 className="text-2xl font-semibold text-slate-900 mb-4">Assigned Materials (From Active Schedules)</h2>
+            {assignedMaterials.length > 0 ? (
               <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                {publicMaterials.map(material => (
+                {assignedMaterials.map(material => (
                     <MaterialCard key={material.id} material={material} onView={handleViewMaterial} canEdit={false} />
                 ))}
               </div>
-            ) : <p className="text-slate-500">No public materials are available.</p>}
+            ) : <p className="text-slate-500">You have no materials assigned to your active or upcoming schedules.</p>}
         </div>
       </div>
 

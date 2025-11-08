@@ -53,14 +53,45 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
     
 class EducationEntrySerializer(serializers.ModelSerializer):
+    # --- ADD THESE TWO LINES ---
+    marksheet_url = serializers.SerializerMethodField()
+    filename = serializers.SerializerMethodField()
+
     class Meta:
         model = EducationEntry
         fields = [
             'id', 'employee', 'title', 'institute', 'location', 
             'start_date', 'end_date', 'currently_ongoing', 
-            'website', 'academic_performance'
+            'website', 'academic_performance',
+            # --- ADD THESE THREE FIELDS ---
+            'marksheet_file', 
+            'marksheet_url',
+            'filename'
         ]
-        read_only_fields = ['employee']
+        read_only_fields = ['employee', 'marksheet_url', 'filename']
+        # --- ADD EXTRA_KWARGS ---
+        extra_kwargs = {
+            'marksheet_file': {'write_only': True, 'required': False} # File is optional
+        }
+
+    # --- ADD THESE TWO METHODS ---
+    def get_marksheet_url(self, obj):
+        request = self.context.get('request')
+        if obj.marksheet_file and request:
+            try:
+                from django.urls import reverse
+                # This 'view-marksheet' action needs to be created in the ViewSet
+                url = reverse('education-entry-view-marksheet', kwargs={'pk': obj.pk})
+                return request.build_absolute_uri(url)
+            except Exception:
+                if obj.marksheet_file.url:
+                    return request.build_absolute_uri(obj.marksheet_file.url)
+        return None
+
+    def get_filename(self, obj):
+        if obj.marksheet_file:
+            return os.path.basename(obj.marksheet_file.name)
+        return None
 
 class WorkExperienceEntrySerializer(serializers.ModelSerializer):
     class Meta:

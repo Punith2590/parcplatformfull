@@ -30,7 +30,13 @@ class User(AbstractUser):
     def get_full_name(self):
         full_name = '%s %s' % (self.first_name, self.last_name)
         return full_name.strip()
-    
+
+# --- ADD THIS FUNCTION ---
+def employee_marksheet_path(instance, filename):
+    # file will be uploaded to MEDIA_ROOT/employee_marksheets/<employee_id>/<filename>
+    return f'employee_marksheets/{instance.employee.id}/{filename}'
+# --- END ADD ---
+
 class EducationEntry(models.Model):
     employee = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -46,6 +52,8 @@ class EducationEntry(models.Model):
     currently_ongoing = models.BooleanField(default=False)
     website = models.URLField(max_length=200, blank=True, null=True)
     academic_performance = models.TextField(blank=True, null=True, help_text="e.g., 7.67 CGPA or 84.96%")
+    # --- ADD THIS LINE ---
+    marksheet_file = models.FileField(upload_to=employee_marksheet_path, null=True, blank=True)
 
     class Meta:
         ordering = ['-start_date'] # Show newest education first
