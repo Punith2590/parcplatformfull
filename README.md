@@ -1,227 +1,244 @@
-# PARC Platform (Full Stack)
+# PARC Platform
 
-This repository contains a full-stack platform with:
-- **Frontend**: React 18 + Vite (in `frontend/`)
-- **Backend**: Django + Django REST Framework + JWT auth (in `backend/`)
+- **Backend:** Django (Python) + **PostgreSQL**
+- **Frontend:** React (JavaScript) + Vite (dev server)
 
-## Repo Structure
-
-```text
-.
-├── backend/                 # Django project
-└── frontend/                # React (Vite) app
-```
+This README explains how to set up and run the project **locally in VS Code**.
 
 ---
 
 ## Prerequisites
 
-Install the following on your machine:
+Install these first:
 
-### Common
-- Git
-- (Recommended) VS Code
+- **Git**
+- **Python 3.10+** (recommended)
+- **Node.js 18+** and **npm**
+- **PostgreSQL 14+**
+- **VS Code**
 
-### Frontend
-- **Node.js v16+**
-- npm (comes with Node) or yarn
+Recommended VS Code extensions:
 
-### Backend
-- **Python 3.10+** (3.11 also OK)
-- pip
-- (Recommended) virtualenv / venv
-
-### Database
-Backend is configured to use **PostgreSQL**.
-
-You need a running Postgres instance and credentials that match the Django settings (see **Database Setup** below).
+- **Python** (Microsoft)
+- **ESLint**
+- **Prettier**
+- **Django** (optional)
+- **PostgreSQL** (optional)
 
 ---
 
-## 1) Clone the repository
+## 1) Clone the repository and open in VS Code
 
 ```bash
 git clone https://github.com/Punith2590/parcplatformfull.git
 cd parcplatformfull
+code .
 ```
 
 ---
 
-## 2) Backend Setup (Django)
+## 2) Open two terminals in VS Code
 
-### 2.1 Create & activate a virtual environment
+In VS Code:
+- `Terminal` → `New Terminal` (Backend)
+- `Terminal` → create a second terminal (Frontend)
 
-**macOS / Linux**
+You will run **backend** in one terminal and **frontend** in the other.
+
+---
+
+## 3) Backend (Django) setup & run
+
+### 3.1 Go to backend folder
+
 ```bash
 cd backend
-python3 -m venv .venv
-source .venv/bin/activate
 ```
 
-**Windows (PowerShell)**
-```powershell
-cd backend
-py -m venv .venv
-.\.venv\Scripts\Activate.ps1
+### 3.2 Create and activate a virtual environment
+
+**Windows (PowerShell):**
+```bash
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 ```
 
-### 2.2 Install Python dependencies
+**Windows (CMD):**
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+**macOS / Linux:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+> If PowerShell blocks activation, run PowerShell as admin and execute:
+> ```bash
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
+
+### 3.3 Install backend dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-(From `backend/requirements.txt`: Django, djangorestframework, cors headers, simplejwt, python-dotenv, psycopg2-binary, Pillow.)
+### 3.4 Configure environment variables (IMPORTANT)
 
----
+Most Django + Postgres projects require environment variables (DB credentials, secret key, etc.).
 
-## 3) Database Setup (PostgreSQL)
+1. Check if there is a file like:
+   - `.env.example`
+   - `.env.sample`
+   - `backend/.env.example`
 
-The Django settings currently use these values:
+2. Create a `.env` file (commonly in `backend/`).
 
-- DB Engine: `django.db.backends.postgresql`
-- DB Name: `parc_db`
-- DB User: `parc_user`
-- DB Password: `parc@123`
-- DB Host: `localhost`
-- DB Port: `5432`
+Example (adjust names/values to match your project settings):
+```env
+DJANGO_SECRET_KEY=change-me
+DJANGO_DEBUG=True
 
-Create a Postgres database and user that match.
-
-Example (using `psql`):
-```sql
-CREATE USER parc_user WITH PASSWORD 'parc@123';
-CREATE DATABASE parc_db OWNER parc_user;
-GRANT ALL PRIVILEGES ON DATABASE parc_db TO parc_user;
+DB_NAME=parc_db
+DB_USER=postgres
+DB_PASSWORD=your_password
+DB_HOST=127.0.0.1
+DB_PORT=5432
 ```
 
-> If your Postgres credentials differ, update `backend/parc_platform/settings.py` accordingly.
+> If your backend uses different variable names, update them to match `backend/settings.py`.
 
----
+### 3.5 Create a PostgreSQL database
 
-## 4) Run Backend Migrations + Start Server
+Using psql (example):
+```sql
+CREATE DATABASE parc_db;
+```
 
-From the `backend/` folder (with venv activated):
+Or create it from pgAdmin.
+
+### 3.6 Run migrations
 
 ```bash
+python manage.py makemigrations
 python manage.py migrate
+```
+
+### 3.7 Create a Django admin user (recommended)
+
+```bash
+python manage.py createsuperuser
+```
+
+### 3.8 Start the backend server
+
+```bash
 python manage.py runserver
 ```
 
-Backend will run at:
-- `http://127.0.0.1:8000/`
-
-Useful endpoints:
-- Django admin: `http://127.0.0.1:8000/admin/`
-- API base: `http://127.0.0.1:8000/api/`
-- JWT token: `http://127.0.0.1:8000/api/token/`
-- JWT refresh: `http://127.0.0.1:8000/api/token/refresh/`
+Backend usually runs at:
+- http://127.0.0.1:8000/
 
 ---
 
-## 5) Frontend Setup (React + Vite)
+## 4) Frontend (React) setup & run
 
-### 5.1 Install dependencies
+Open the **second terminal** (keep backend running in the first terminal).
 
-In a new terminal:
+### 4.1 Go to frontend folder
 
+From the repository root:
 ```bash
 cd frontend
+```
+
+### 4.2 Install frontend dependencies
+
+```bash
 npm install
 ```
 
-### 5.2 Configure environment variables
+### 4.3 Configure frontend environment variables (if required)
 
-The frontend README mentions an env example file.
+Many Vite/React apps need an API base URL.
 
-Create `.env.local` in `frontend/` (or copy from `.env.local.example` if present):
+Look for:
+- `frontend/.env.example`
 
-```bash
-# from frontend/
-cp .env.local.example .env.local
-```
-
-Then set at least:
-
-- `VITE_API_BASE_URL` — backend API URL (example: `http://127.0.0.1:8000`)
-- `VITE_GEMINI_API_KEY` — Gemini API key (if AI features are used)
-
-Example:
+Common Vite pattern:
 ```env
-VITE_API_BASE_URL=http://127.0.0.1:8000
-VITE_GEMINI_API_KEY=YOUR_KEY_HERE
+VITE_API_URL=http://127.0.0.1:8000
 ```
 
-### 5.3 Start the frontend dev server
+### 4.4 Start the frontend dev server
 
 ```bash
 npm run dev
 ```
 
-Vite will print the local URL (commonly):
-- `http://localhost:5173/`
+Frontend usually runs at:
+- http://localhost:5173/
+
+Open the link shown in the terminal.
 
 ---
 
-## Running the Full Platform (Dev)
+## 5) Typical development workflow (VS Code)
 
-You typically run both servers:
+- Terminal 1:
+  - activate venv
+  - `python manage.py runserver`
+- Terminal 2:
+  - `npm run dev`
 
-### Terminal 1 (Backend)
+---
+
+## Troubleshooting
+
+### Port already in use
+Run on a different port.
+
+Backend:
 ```bash
-cd backend
-source .venv/bin/activate   # (or Windows activate)
-python manage.py runserver
+python manage.py runserver 8001
 ```
 
-### Terminal 2 (Frontend)
+Frontend:
 ```bash
-cd frontend
-npm run dev
+npm run dev -- --port 5174
 ```
 
----
+### Django can’t connect to Postgres
+Check:
+- Postgres is running
+- DB name/user/password/host/port match your `.env` and Django settings
+- You created the database
 
-## Common Troubleshooting
+### CORS errors (frontend calling backend)
+If you see CORS issues, you likely need to allow the frontend origin in Django.
+Common allowed origins:
+- http://localhost:5173
+- http://127.0.0.1:5173
 
-### 1) Frontend cannot call backend (CORS / wrong base URL)
-- Make sure `VITE_API_BASE_URL` points to the backend (`http://127.0.0.1:8000`)
-- Ensure Django CORS settings allow the frontend origin (if you see CORS errors)
-
-### 2) Postgres connection errors
-- Confirm Postgres is running on `localhost:5432`
-- Confirm DB/user/password exist and match Django settings
-
-### 3) Migrations fail
-- Ensure database exists and user has permissions
-- Re-run:
-  ```bash
-  python manage.py makemigrations
-  python manage.py migrate
-  ```
+(Exact fix depends on whether the project uses `django-cors-headers`.)
 
 ---
 
-## Frontend Scripts
-
-From `frontend/`:
-- `npm run dev` — start dev server
-- `npm run build` — build for production
-- `npm run preview` — preview production build
-- `npm run lint` — run ESLint
+## Production notes (optional)
+For production deployments you typically:
+- build frontend (`npm run build`)
+- configure Django for static files, security settings, and production DB
+- use a proper server (Gunicorn/Uvicorn + Nginx) rather than `runserver`
 
 ---
 
-## Contributing
+## Repository structure (expected)
 
-1. Fork the repo
-2. Create a branch
-3. Make changes
-4. Test
-5. Open a pull request
-
----
-
-## License
-
-Proprietary and confidential.
+```text
+parcplatformfull/
+  backend/   # Django project
+  frontend/  # React app
+```
